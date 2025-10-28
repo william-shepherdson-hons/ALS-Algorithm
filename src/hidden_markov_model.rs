@@ -1,5 +1,6 @@
 pub fn calculate_mastery(initial: f32, transition: f32) -> f32  {
-    0.1
+    let mastery = initial + transition * (1.0 - initial);
+    mastery
 }
 pub fn calculate_success(mastery: f32, slip: f32, guess: f32) -> f32 {
     0.1
@@ -19,7 +20,7 @@ mod tests {
     #[test]
     fn full_learning() {
         let mastery = calculate_mastery(0.2, 1.0);
-        assert_eq!(mastery, 0.2);
+        assert_eq!(mastery, 1.0);
     }
     #[test]
     fn parital_learning() {
