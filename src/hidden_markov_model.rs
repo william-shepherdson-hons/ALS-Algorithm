@@ -3,7 +3,8 @@ pub fn calculate_mastery(initial: f32, transition: f32) -> f32  {
     mastery
 }
 pub fn calculate_success(mastery: f32, slip: f32, guess: f32) -> f32 {
-    0.1
+    let sucess = guess * (1.0 - mastery) + (1.0 - slip) * mastery;
+    sucess
 }
 
 
@@ -31,7 +32,7 @@ mod tests {
     fn continued_learning() {
         let mastery = calculate_mastery(0.2, 0.2);
         let mastery2 = calculate_mastery(mastery, 0.2);
-        assert!((0.2 < mastery) & (mastery < mastery2))
+        assert!((0.2 < mastery) && (mastery < mastery2))
     }
     #[test]
     fn slip_test() {
