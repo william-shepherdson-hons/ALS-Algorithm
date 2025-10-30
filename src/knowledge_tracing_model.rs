@@ -1,4 +1,7 @@
 pub async fn calculate_mastery(initial: f32, transition: f32, slip: f32, guess: f32, correct: bool) -> f32  {
+    if slip + guess > 1.0 {
+        panic!("Invalid parameters: P(G) + P(S) > 1")
+    }
     if correct {
         let top = (1.0 - transition) * (1.0 - initial) * guess;
         let bottom = guess + (1.0 - slip - guess) * initial;
@@ -11,7 +14,8 @@ pub async fn calculate_mastery(initial: f32, transition: f32, slip: f32, guess: 
     mastery
 }
 pub async fn calculate_success(mastery: f32, slip: f32, guess: f32) -> f32 {
-    mastery
+    let sucess = guess * (1.0 - mastery) + (1.0 - slip) * mastery;
+    sucess
 }
 
 
@@ -81,18 +85,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn always_guessing_correct() {
-        let mastery = calculate_mastery(0.4, 0.1, 0.1, 1.0, true).await;
-        assert!((mastery - 0.437).abs() < 0.001);
-    }
-
-    #[tokio::test]
-    async fn always_guessing_incorrect() {
-        let mastery = calculate_mastery(0.4, 0.1, 0.1, 1.0, false).await;
-        assert!((mastery - 1.0).abs() < 0.001);
-    }
-
-    #[tokio::test]
     async fn mastered_correct() {
         let mastery = calculate_mastery(1.0, 0.4, 0.1, 0.3, true).await;
         assert!((mastery - 1.0).abs() < 0.001);
@@ -126,6 +118,16 @@ mod tests {
     #[should_panic(expected = "Invalid parameters: P(G) + P(S) > 1")]
     async fn no_negative_learning_incorrect() {
         calculate_mastery(0.3, 0.2, 0.8, 0.4, false).await;
+    }
+    #[tokio::test]
+    async fn slip_test() {
+        let correct = calculate_success(1.0, 0.1, 0.6).await;
+        assert_eq!(correct, 0.9)
+    }
+    #[tokio::test]
+    async fn guess_test() {
+        let correct = calculate_success(0.0, 0.1, 0.5).await;
+        assert_eq!(correct, 0.5)
     }
 
 }
