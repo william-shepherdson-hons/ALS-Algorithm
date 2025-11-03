@@ -1,5 +1,4 @@
-pub mod hidden_markov_model;
-pub mod knowledge_tracing_model;
+pub mod models;
 
 // pub fn add(left: u64, right: u64) -> u64 {
 //     left + right
