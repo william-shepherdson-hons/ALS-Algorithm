@@ -1,5 +1,6 @@
 pub mod models;
 pub mod evaluation;
+pub mod data;
 // pub fn add(left: u64, right: u64) -> u64 {
 //     left + right
 // }
