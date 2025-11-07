@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 use std::error::Error;
+use rand::seq::SliceRandom;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use csv::{Writer, ReaderBuilder};
@@ -12,7 +13,7 @@ struct Record {
     skill_id: String
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct FormattedRecord {
     user_id: String,
     correct: String,
@@ -29,6 +30,8 @@ pub fn process_assistments() -> Result<(), Box<dyn Error>> {
 
     println!("Formatting output");
     format_data()?;
+
+    split_data(20)?;
     Ok(())
 }
 
@@ -137,3 +140,78 @@ fn format_data() -> Result<(), Box<dyn Error>> {
     println!("Final formatted CSV saved to src/data/final_formatted_skill_data.csv");
     Ok(())
 }
+
+
+
+fn split_data(test_split: i32) -> Result<(), Box<dyn Error>> {
+    println!("Splitting data by students ({}% test)", test_split);
+
+    // Read the final formatted CSV
+    let mut reader = ReaderBuilder::new()
+        .trim(csv::Trim::All)
+        .from_path("src/data/final_formatted_skill_data.csv")?;
+
+    let records: Vec<FormattedRecord> = reader.deserialize().collect::<Result<_, _>>()?;
+    println!("Loaded {} total records", records.len());
+
+    // Collect all unique user_ids
+    let mut users: Vec<String> = records
+        .iter()
+        .map(|r| r.user_id.clone())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    println!("Found {} unique users", users.len());
+
+    // Shuffle users for random splitting
+    let mut rng = rand::rng();
+    users.shuffle(&mut rng);
+
+    // Determine split index for users
+    let test_user_count = (users.len() as f32 * (test_split as f32 / 100.0)).round() as usize;
+    let (test_users, train_users) = users.split_at(test_user_count);
+
+    let test_user_set: HashSet<String> = test_users.iter().cloned().collect();
+    let train_user_set: HashSet<String> = train_users.iter().cloned().collect();
+
+    // Split records by user_id
+    let mut train_records = Vec::new();
+    let mut test_records = Vec::new();
+
+    for record in records {
+        if test_user_set.contains(&record.user_id) {
+            test_records.push(record);
+        } else if train_user_set.contains(&record.user_id) {
+            train_records.push(record);
+        }
+    }
+
+    println!(
+        "Split complete: {} train users, {} test users",
+        train_user_set.len(),
+        test_user_set.len()
+    );
+    println!(
+        "Train records: {}, Test records: {}",
+        train_records.len(),
+        test_records.len()
+    );
+
+    let mut train_writer = Writer::from_path("src/data/train_data.csv")?;
+    for record in &train_records {
+        train_writer.serialize(record)?;
+    }
+    train_writer.flush()?;
+    println!("Training data saved to src/data/train_data.csv");
+
+    let mut test_writer = Writer::from_path("src/data/test_data.csv")?;
+    for record in &test_records {
+        test_writer.serialize(record)?;
+    }
+    test_writer.flush()?;
+    println!("Test data saved to src/data/test_data.csv");
+
+    Ok(())
+}
+
