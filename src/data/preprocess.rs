@@ -1,9 +1,12 @@
-use std::collections::{HashMap,HashSet};
+use std::collections::{HashSet,HashMap};
+
 use std::error::Error;
+use rand::rng;
 use rand::seq::SliceRandom;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use csv::{Writer, ReaderBuilder};
+use crate::evaluation::formatted_record::FormattedRecord;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Record {
@@ -13,13 +16,7 @@ struct Record {
     skill_id: String
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct FormattedRecord {
-    user_id: String,
-    correct: String,
-    times_applied: u32,
-    skill_id: String,
-}
+
 
 pub fn process_assistments() -> Result<(), Box<dyn Error>> {
     println!("Removing fields not associated with skills");
@@ -30,7 +27,6 @@ pub fn process_assistments() -> Result<(), Box<dyn Error>> {
 
     println!("Formatting output");
     format_data()?;
-
     split_data(20)?;
     Ok(())
 }
@@ -125,12 +121,15 @@ fn format_data() -> Result<(), Box<dyn Error>> {
         let key = (record.user_id.clone(), record.skill_id.clone());
         let counter = usage_count.entry(key.clone()).or_insert(0);
         *counter += 1;
+        let correct_value = record.correct.trim().parse::<u32>().unwrap_or(0);
+        let user_id_value= record.user_id.trim().parse::<u32>().unwrap_or(0);
+        let skill_id_value = record.skill_id.trim().parse::<u32>().unwrap_or(0);
 
         let formatted = FormattedRecord {
-            user_id: record.user_id,
-            correct: record.correct,
+            user_id: user_id_value,
+            correct: correct_value,
             times_applied: *counter,
-            skill_id: record.skill_id,
+            skill_id: skill_id_value,
         };
 
         writer.serialize(formatted)?;
@@ -140,6 +139,7 @@ fn format_data() -> Result<(), Box<dyn Error>> {
     println!("Final formatted CSV saved to src/data/final_formatted_skill_data.csv");
     Ok(())
 }
+
 
 
 
@@ -155,7 +155,7 @@ fn split_data(test_split: i32) -> Result<(), Box<dyn Error>> {
     println!("Loaded {} total records", records.len());
 
     // Collect all unique user_ids
-    let mut users: Vec<String> = records
+    let mut users: Vec<u32> = records
         .iter()
         .map(|r| r.user_id.clone())
         .collect::<HashSet<_>>()
@@ -165,15 +165,15 @@ fn split_data(test_split: i32) -> Result<(), Box<dyn Error>> {
     println!("Found {} unique users", users.len());
 
     // Shuffle users for random splitting
-    let mut rng = rand::rng();
+    let mut rng = rng();
     users.shuffle(&mut rng);
 
     // Determine split index for users
     let test_user_count = (users.len() as f32 * (test_split as f32 / 100.0)).round() as usize;
     let (test_users, train_users) = users.split_at(test_user_count);
 
-    let test_user_set: HashSet<String> = test_users.iter().cloned().collect();
-    let train_user_set: HashSet<String> = train_users.iter().cloned().collect();
+    let test_user_set: HashSet<u32> = test_users.iter().cloned().collect();
+    let train_user_set: HashSet<u32> = train_users.iter().cloned().collect();
 
     // Split records by user_id
     let mut train_records = Vec::new();
