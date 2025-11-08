@@ -51,6 +51,8 @@ async fn forward_pass(observations: &[bool], params: &EmResult, model: &Models) 
             }
         };
 
+        mastery_probs.push(next_mastery.min(1.0).max(0.0));
+
     }
     mastery_probs
 }
@@ -89,6 +91,9 @@ pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &s
 
     for iteration in 0..MAX_ITERATIONS {
         let mut counts = ExpectedCounts::new();
+        for (_key, sequence) in &sequences {
+            let mastery_probs = forward_pass(&sequence.observations, &params, &model).await;
+        }
     }
 
     Ok(EmResult {
