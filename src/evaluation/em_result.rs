@@ -1,6 +1,6 @@
 pub struct EmResult {
-    pub initial: f32,
-    pub transition: f32,
-    pub slip: f32,
-    pub guess: f32
+    pub initial: f64,
+    pub transition: f64,
+    pub slip: f64,
+    pub guess: f64
 }

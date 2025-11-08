@@ -35,6 +35,12 @@ impl ExpectedCounts {
     }
 }
 
+async fn forward_pass(observations: &[bool], params: &EmResult) -> Vec<f64> {
+    let mut mastery_probs = Vec::with_capacity(observations.len() + 1);
+    mastery_probs.push(params.initial);
+    mastery_probs
+}
+
 
 
 pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &str) -> Result<EmResult, Box<dyn Error>>{
