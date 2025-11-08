@@ -2,12 +2,40 @@ use crate::evaluation::em_result::EmResult;
 use crate::models::models::Models;
 use crate::evaluation::formatted_record::FormattedRecord;
 use std::{collections::HashMap, error::Error};
-use serde::{Deserialize, Serialize};
 use csv::{ReaderBuilder};
 
 struct UserSkillSequence {
     observations: Vec<bool>,
 }
+
+
+struct ExpectedCounts {
+    sum_initial_mastery: f64,
+    sum_learned: f64,
+    sum_opportunities_unknown: f64,
+    sum_correct_while_known: f64,
+    sum_known: f64,
+    sum_correct_while_unknown: f64,
+    sum_unknown: f64,
+    n_sequences: usize,
+}
+
+impl ExpectedCounts {
+    fn new() -> Self {
+        Self {
+            sum_initial_mastery: 0.0,
+            sum_learned: 0.0,
+            sum_opportunities_unknown: 0.0,
+            sum_correct_while_known: 0.0,
+            sum_known: 0.0,
+            sum_correct_while_unknown: 0.0,
+            sum_unknown: 0.0,
+            n_sequences: 0,
+        }
+    }
+}
+
+
 
 pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &str) -> Result<EmResult, Box<dyn Error>>{
     let mut reader = ReaderBuilder::new()
@@ -25,6 +53,23 @@ pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &s
 
         sequence.observations.push(record.correct == 1);
     }
+    const MAX_ITERATIONS: usize = 100;
+    const TOLERANCE: f64 = 1e-4;
+    let mut params = EmResult {
+        initial: initial.initial,
+        transition: initial.transition,
+        slip: initial.slip,
+        guess: initial.guess,
+    };
+
+    println!("Starting EM with {} sequences", sequences.len());
+    println!("Initial params: L0={:.4}, T={:.4}, S={:.4}, G={:.4}", 
+             params.initial, params.transition, params.slip, params.guess);
+
+
+    for iteration in 0..MAX_ITERATIONS {
+        let mut counts = ExpectedCounts::new();
+    }
 
     Ok(EmResult {
         guess: 0.0,
@@ -32,4 +77,5 @@ pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &s
         initial: 0.0,
         slip: 0.0
     })
+
 }
