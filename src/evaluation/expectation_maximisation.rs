@@ -75,6 +75,51 @@ async fn accumulate_sequence_counts(observations: &[bool], mastery_probs: &[f64]
     }
 }
 
+fn m_step_update(counts: &ExpectedCounts) -> EmResult {
+    let initial = if counts.n_sequences > 0 {
+        (counts.sum_initial_mastery / counts.n_sequences as f64)
+            .min(0.99).max(0.01)
+    } else {
+        0.5
+    };
+    
+    let transition = if counts.sum_opportunities_unknown > 0.0 {
+        (counts.sum_learned / counts.sum_opportunities_unknown)
+            .min(0.99).max(0.01)
+    } else {
+        0.1
+    };
+    
+    let slip = if counts.sum_known > 0.0 {
+        (1.0 - counts.sum_correct_while_known / counts.sum_known)
+            .min(0.99).max(0.01)
+    } else {
+        0.1
+    };
+    
+    let guess = if counts.sum_unknown > 0.0 {
+        (counts.sum_correct_while_unknown / counts.sum_unknown)
+            .min(0.99).max(0.01)
+    } else {
+        0.2
+    };
+    
+    let sum = guess + slip;
+    let (guess, slip) = if sum >= 1.0 {
+        let scale = 0.98 / sum;
+        (guess * scale, slip * scale)
+    } else {
+        (guess, slip)
+    };
+    
+    EmResult {
+        initial: initial,
+        transition: transition,
+        slip: slip,
+        guess: guess,
+    }
+}
+
 
 pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &str) -> Result<EmResult, Box<dyn Error>>{
     let mut reader = ReaderBuilder::new()
@@ -110,6 +155,7 @@ pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &s
         let mut counts = ExpectedCounts::new();
         for (_key, sequence) in &sequences {
             let mastery_probs = forward_pass(&sequence.observations, &params, &model).await;
+            accumulate_sequence_counts(&sequence.observations, &mastery_probs, &mut counts).await
         }
     }
 
