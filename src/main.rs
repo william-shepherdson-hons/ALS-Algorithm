@@ -5,10 +5,10 @@ use als_algorithm::{data::preprocess::process_assistments, evaluation::{em_resul
 async fn main(){
     //let _ =  process_assistments();
     let params = EmResult {
-        initial: 0.1,
-        transition: 0.3,
-        slip: 0.1,
-        guess: 0.1
+        initial: 0.4,
+        transition: 0.1,
+        slip: 0.0,
+        guess: 0.0
     };
     let _ = expectation_maximisation(als_algorithm::models::models::Models::HiddenMarkovModel, params, "src/data/train_data.csv").await;
 } 

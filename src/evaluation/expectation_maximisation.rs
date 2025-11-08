@@ -137,7 +137,7 @@ pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &s
 
         sequence.observations.push(record.correct == 1);
     }
-    const MAX_ITERATIONS: usize = 100;
+    const MAX_ITERATIONS: usize = 1000;
     const TOLERANCE: f64 = 1e-4;
     let mut params = EmResult {
         initial: initial.initial,
@@ -157,13 +157,23 @@ pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &s
             let mastery_probs = forward_pass(&sequence.observations, &params, &model).await;
             accumulate_sequence_counts(&sequence.observations, &mastery_probs, &mut counts).await
         }
-    }
+        let new_params = m_step_update(&counts);
 
-    Ok(EmResult {
-        guess: 0.0,
-        transition: 0.0,
-        initial: 0.0,
-        slip: 0.0
-    })
+        let diff = (new_params.initial - params.initial).abs()
+            + (new_params.transition - params.transition).abs()
+            + (new_params.slip - params.slip).abs()
+            + (new_params.guess - params.guess).abs();
+        println!("Iteration {}: L0={:.4}, T={:.4}, S={:.4}, G={:.4}, diff={:.6}",
+            iteration, new_params.initial, new_params.transition,
+            new_params.slip, new_params.guess, diff);
+        params = new_params;
+        if diff < TOLERANCE {
+            println!("Converged after {} iterations", iteration + 1);
+            break;
+        }
+    }
+    
+
+    Ok(params)
 
 }
