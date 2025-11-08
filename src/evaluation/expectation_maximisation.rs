@@ -56,7 +56,24 @@ async fn forward_pass(observations: &[bool], params: &EmResult, model: &Models) 
     }
     mastery_probs
 }
+async fn accumulate_sequence_counts(observations: &[bool], mastery_probs: &[f64], counts: &mut ExpectedCounts){
+    counts.sum_initial_mastery += mastery_probs[0];
+    counts.n_sequences += 1;
+    for t in 0..observations.len() {
+        let p_known_before = mastery_probs[t];
+        let p_known_after = mastery_probs[t + 1];
+        let p_unknown_before = 1.0 - p_known_before;
+        counts.sum_learned += (p_known_after - p_known_before).max(0.0);
+        counts.sum_opportunities_unknown += p_unknown_before;
 
+        if observations[t] {
+            counts.sum_correct_while_known += p_known_before;
+            counts.sum_correct_while_unknown += p_unknown_before;
+        }
+        counts.sum_known += p_known_before;
+        counts.sum_unknown += p_unknown_before;
+    }
+}
 
 
 pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &str) -> Result<EmResult, Box<dyn Error>>{
