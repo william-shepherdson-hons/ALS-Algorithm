@@ -1,4 +1,4 @@
-pub async fn calculate_mastery(initial: f32, transition: f32, slip: f32, guess: f32, correct: bool) -> f32  {
+pub async fn calculate_mastery(initial: f64, transition: f64, slip: f64, guess: f64, correct: bool) -> f64  {
     if slip + guess > 1.0 {
         panic!("Invalid parameters: P(G) + P(S) > 1")
     }
@@ -13,7 +13,7 @@ pub async fn calculate_mastery(initial: f32, transition: f32, slip: f32, guess: 
     let mastery = 1.0 - (top/bottom);
     mastery
 }
-pub async fn calculate_success(mastery: f32, slip: f32, guess: f32) -> f32 {
+pub async fn calculate_success(mastery: f64, slip: f64, guess: f64) -> f64 {
     let sucess = guess * (1.0 - mastery) + (1.0 - slip) * mastery;
     sucess
 }

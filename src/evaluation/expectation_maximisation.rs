@@ -1,4 +1,5 @@
-use crate::evaluation::em_result::EmResult;
+use crate::models::knowledge_tracing_model;
+use crate::{evaluation::em_result::EmResult, models::hidden_markov_model};
 use crate::models::models::Models;
 use crate::evaluation::formatted_record::FormattedRecord;
 use std::{collections::HashMap, error::Error};
@@ -35,9 +36,22 @@ impl ExpectedCounts {
     }
 }
 
-async fn forward_pass(observations: &[bool], params: &EmResult) -> Vec<f64> {
+async fn forward_pass(observations: &[bool], params: &EmResult, model: &Models) -> Vec<f64> {
     let mut mastery_probs = Vec::with_capacity(observations.len() + 1);
     mastery_probs.push(params.initial);
+    for &observed_correct in observations {
+        let current_mastery = *mastery_probs.last().unwrap();
+
+        let next_mastery = match model {
+            Models::HiddenMarkovModel => {
+                hidden_markov_model::calculate_mastery(current_mastery, params.transition).await
+            },
+            Models::KnowledgeTracingModel => {
+                knowledge_tracing_model::calculate_mastery(current_mastery, params.transition, params.slip, params.guess, observed_correct).await
+            }
+        };
+
+    }
     mastery_probs
 }
 
