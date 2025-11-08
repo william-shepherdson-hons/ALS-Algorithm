@@ -1,8 +1,8 @@
-pub async fn calculate_mastery(initial: f32, transition: f32) -> f32  {
+pub async fn calculate_mastery(initial: f64, transition: f64) -> f64  {
     let mastery = initial + transition * (1.0 - initial);
     mastery
 }
-pub async fn calculate_success(mastery: f32, slip: f32, guess: f32) -> f32 {
+pub async fn calculate_success(mastery: f64, slip: f64, guess: f64) -> f64 {
     let sucess = guess * (1.0 - mastery) + (1.0 - slip) * mastery;
     sucess
 }
