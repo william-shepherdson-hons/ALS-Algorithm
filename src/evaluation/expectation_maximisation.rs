@@ -117,23 +117,8 @@ async fn calculate_transition_expectations(observations: &[bool], forward: &[f64
     xi_values
 }
 
-async fn accumulate_sequence_counts(observations: &[bool], mastery_probs: &[f64], counts: &mut ExpectedCounts){
-    counts.sum_initial_mastery += mastery_probs[0];
-    counts.n_sequences += 1;
-    for t in 0..observations.len() {
-        let p_known_before = mastery_probs[t];
-        let p_known_after = mastery_probs[t + 1];
-        let p_unknown_before = 1.0 - p_known_before;
-        counts.sum_learned += (p_known_after - p_known_before).max(0.0);
-        counts.sum_opportunities_unknown += p_unknown_before;
+async fn accumulate_sequence_counts(observations: &[bool], forward: &[f64], backward: &[f64], params: &EmResult, model: &Models, counts: &mut ExpectedCounts){
 
-        if observations[t] {
-            counts.sum_correct_while_known += p_known_before;
-            counts.sum_correct_while_unknown += p_unknown_before;
-        }
-        counts.sum_known += p_known_before;
-        counts.sum_unknown += p_unknown_before;
-    }
 }
 
 fn m_step_update(counts: &ExpectedCounts) -> EmResult {
@@ -210,8 +195,9 @@ pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &s
     for iteration in 0..MAX_ITERATIONS {
         let mut counts = ExpectedCounts::new();
         for (_key, sequence) in &sequences {
-            let mastery_probs = forward_pass(&sequence.observations, &params, &model).await;
-            accumulate_sequence_counts(&sequence.observations, &mastery_probs, &mut counts).await
+            let forward = forward_pass(&sequence.observations, &params, &model).await;
+            let backward = backwards_pass(&sequence.observations, &params, &model).await;
+            accumulate_sequence_counts(&sequence.observations, &forward, &backward, &params, &model, &mut counts).await
         }
         let new_params = m_step_update(&counts);
 
