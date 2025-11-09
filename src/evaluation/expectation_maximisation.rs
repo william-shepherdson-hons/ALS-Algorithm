@@ -56,6 +56,19 @@ async fn forward_pass(observations: &[bool], params: &EmResult, model: &Models) 
     }
     mastery_probs
 }
+
+async fn backwards_pass(observations: &[bool], params: &EmResult, model: &Models) -> Vec<f64> {
+    let n = observations.len();
+    let mut backward = vec![0.0; n + 1];
+
+    backward[n] = 1.0;
+    for t in (0..n).rev() {
+        let current_backward = backward[t + 1];
+    }
+
+    [0.1].to_vec()
+}
+
 async fn accumulate_sequence_counts(observations: &[bool], mastery_probs: &[f64], counts: &mut ExpectedCounts){
     counts.sum_initial_mastery += mastery_probs[0];
     counts.n_sequences += 1;
@@ -139,12 +152,7 @@ pub async fn expectation_maximisation(model: Models, initial: EmResult, path: &s
     }
     const MAX_ITERATIONS: usize = 1000;
     const TOLERANCE: f64 = 1e-4;
-    let mut params = EmResult {
-        initial: initial.initial,
-        transition: initial.transition,
-        slip: initial.slip,
-        guess: initial.guess,
-    };
+    let mut params = initial;
 
     println!("Starting EM with {} sequences", sequences.len());
     println!("Initial params: L0={:.4}, T={:.4}, S={:.4}, G={:.4}", 
