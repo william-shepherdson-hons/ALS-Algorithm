@@ -9,5 +9,5 @@ async fn main(){
         slip: 0.0,
         guess: 0.0
     };
-    let _ = expectation_maximisation(als_algorithm::models::models::Models::KnowledgeTracingModel, params, "src/data/test.csv").await;
+    let _ = expectation_maximisation(als_algorithm::models::models::Models::HiddenMarkovModel, params, "src/data/test.csv").await;
 } 
