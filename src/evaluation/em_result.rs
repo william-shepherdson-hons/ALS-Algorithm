@@ -1,3 +1,4 @@
+#[derive(Clone, Copy, Debug)]
 pub struct EmResult {
     pub initial: f64,
     pub transition: f64,
