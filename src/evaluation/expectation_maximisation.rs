@@ -330,6 +330,7 @@ pub async fn expectation_maximisation(
     output: &str
 ) -> Result<EmResult, Box<dyn Error>> {
     let mut reader = ReaderBuilder::new().trim(csv::Trim::All).from_path(path)?;
+    let mut writer = Writer::from_path(output)?;
     let mut records: Vec<FormattedRecord> = reader.deserialize().collect::<Result<_, _>>()?;
     records.sort_by_key(|r| (r.user_id, r.skill_id, r.times_applied));
 
@@ -381,7 +382,7 @@ pub async fn expectation_maximisation(
             + (new_params.slip - params.slip).abs()
             + (new_params.guess - params.guess).abs();
 
-        let mut writer = Writer::from_path(output)?;
+        
         let iteration_output = Iteration {
             iteration: iteration,
             initial: new_params.initial,
@@ -390,7 +391,8 @@ pub async fn expectation_maximisation(
             guess: new_params.guess,
             diff: diff
         };
-        writer.serialize(iteration_output)?;
+        writer.serialize(&iteration_output)?;
+        writer.flush()?;
 
         params = new_params;
         if diff < TOLERANCE {
