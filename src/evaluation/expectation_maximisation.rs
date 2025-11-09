@@ -64,9 +64,19 @@ async fn backwards_pass(observations: &[bool], params: &EmResult, model: &Models
     backward[n] = 1.0;
     for t in (0..n).rev() {
         let current_backward = backward[t + 1];
+        let next_observation = observations[t];
+        let beta = match  model {
+            Models::HiddenMarkovModel => {
+                hidden_markov_model::calculate_backward_probability(current_backward, next_observation, params.slip, params.guess, params.transition).await
+            }
+            Models::KnowledgeTracingModel => {
+                knowledge_tracing_model::calculate_backward_probability(current_backward, next_observation, params.slip, params.guess).await
+            }
+        };
+        backward[t] = beta;
     }
+    backward
 
-    [0.1].to_vec()
 }
 
 async fn accumulate_sequence_counts(observations: &[bool], mastery_probs: &[f64], counts: &mut ExpectedCounts){
