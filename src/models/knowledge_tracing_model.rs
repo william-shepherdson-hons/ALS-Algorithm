@@ -22,21 +22,6 @@ pub async fn calculate_success(mastery: f64, slip: f64, guess: f64) -> f64 {
     guess * (1.0 - mastery) + (1.0 - slip) * mastery
 }
 
-pub async fn calculate_forward_pair_from_marginal_kt(
-    p_known_t: f64,
-    transition: f64,
-    slip: f64,
-    guess: f64,
-    observation_t_plus1: bool,
-) -> (f64, f64) {
-    let b_k = if observation_t_plus1 { 1.0 - slip } else { slip };
-    let b_u = if observation_t_plus1 { guess } else { 1.0 - guess };
-    let p_unknown_t = 1.0 - p_known_t;
-    let alpha_k_next = (p_known_t * 1.0 + p_unknown_t * transition) * b_k;
-    let alpha_u_next = (p_known_t * 0.0 + p_unknown_t * (1.0 - transition)) * b_u;
-    (alpha_k_next, alpha_u_next)
-}
-
 pub async fn calculate_backward_pair_kt(
     beta_next_k: f64,
     beta_next_u: f64,
