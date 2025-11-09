@@ -6,7 +6,25 @@ pub async fn calculate_success(mastery: f64, slip: f64, guess: f64) -> f64 {
     let sucess = guess * (1.0 - mastery) + (1.0 - slip) * mastery;
     sucess
 }
+pub async fn calculate_backward_probability(current_backward: f64, next_observation: bool, slip: f64 , guess: f64, transition: f64) -> f64 {
+    let p_obs_if_known = if next_observation {
+        1.0 - slip
+    } else {
+        slip
+    };
+    let p_obs_if_unknown = if next_observation {
+        guess
+    } else {
+        1.0 - guess
+    };
+    
 
+    0.1
+}
+
+pub async fn calculate_transistion_expectation(forward_prob: f64, backward_prob: f64, next_backward: f64, next_observation: bool, transition: f64, slip: f64, guess: f64) -> f64 {
+    0.1
+}
 
 
 #[cfg(test)]
