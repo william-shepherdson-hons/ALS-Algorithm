@@ -1,9 +1,11 @@
+use crate::evaluation::iteration::Iteration;
 use crate::models::knowledge_tracing_model;
 use crate::{evaluation::em_result::EmResult, models::hidden_markov_model};
 use crate::models::models::Models;
 use crate::evaluation::formatted_record::FormattedRecord;
 use std::{collections::HashMap, error::Error};
-use csv::ReaderBuilder;
+use csv::{Writer,ReaderBuilder};
+
 
 struct UserSkillSequence {
     observations: Vec<bool>,
@@ -325,6 +327,7 @@ pub async fn expectation_maximisation(
     model: Models,
     initial: EmResult,
     path: &str,
+    output: &str
 ) -> Result<EmResult, Box<dyn Error>> {
     let mut reader = ReaderBuilder::new().trim(csv::Trim::All).from_path(path)?;
     let mut records: Vec<FormattedRecord> = reader.deserialize().collect::<Result<_, _>>()?;
@@ -378,10 +381,16 @@ pub async fn expectation_maximisation(
             + (new_params.slip - params.slip).abs()
             + (new_params.guess - params.guess).abs();
 
-        println!(
-            "Iteration {}: L0={:.4}, T={:.4}, S={:.4}, G={:.4}, diff={:.6}",
-            iteration, new_params.initial, new_params.transition, new_params.slip, new_params.guess, diff
-        );
+        let mut writer = Writer::from_path(output)?;
+        let iteration_output = Iteration {
+            iteration: iteration,
+            initial: new_params.initial,
+            transition: new_params.transition,
+            slip: new_params.slip,
+            guess: new_params.guess,
+            diff: diff
+        };
+        writer.serialize(iteration_output)?;
 
         params = new_params;
         if diff < TOLERANCE {
@@ -389,6 +398,6 @@ pub async fn expectation_maximisation(
             break;
         }
     }
-
+    
     Ok(params)
 }
