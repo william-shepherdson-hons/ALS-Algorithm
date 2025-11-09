@@ -79,7 +79,7 @@ async fn backwards_pass(observations: &[bool], params: &EmResult, model: &Models
 
 }
 
-async fn smooth_probabilities(forward: &[f64], backward: &[f64]) -> Vec<f64> {
+fn smooth_probabilities(forward: &[f64], backward: &[f64]) -> Vec<f64> {
     let n = forward.len();
     let mut smoothed = Vec::with_capacity(n);
     let mut normalizer = 0.0;
@@ -118,7 +118,27 @@ async fn calculate_transition_expectations(observations: &[bool], forward: &[f64
 }
 
 async fn accumulate_sequence_counts(observations: &[bool], forward: &[f64], backward: &[f64], params: &EmResult, model: &Models, counts: &mut ExpectedCounts){
+    let smoothed = smooth_probabilities(forward, backward);
 
+    counts.sum_initial_mastery += smoothed[0];
+    counts.n_sequences += 1;
+
+    let xi_values = calculate_transition_expectations(observations, &smoothed, backward, params, model).await;
+    for t in 0..observations.len() {
+        let p_known = smoothed[t];
+        let p_unknown = 1.0 - p_known;
+        
+        counts.sum_learned += xi_values[t];
+        counts.sum_opportunities_unknown += p_unknown;
+        
+        if observations[t] {
+            counts.sum_correct_while_known += p_known;
+            counts.sum_correct_while_unknown += p_unknown;
+        }
+        
+        counts.sum_known += p_known;
+        counts.sum_unknown += p_unknown;
+    }
 }
 
 fn m_step_update(counts: &ExpectedCounts) -> EmResult {
