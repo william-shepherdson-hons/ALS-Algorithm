@@ -3,9 +3,10 @@ use als_algorithm::{data::preprocess::process_assistments, evaluation::{em_resul
 
 #[tokio::main]
 async fn main(){
+    //let _ =  process_assistments();
     let params = EmResult {
-        initial: 0.2,
-        transition: 0.2,
+        initial: 0.4,
+        transition: 0.1,
         slip: 0.0,
         guess: 0.0
     };
