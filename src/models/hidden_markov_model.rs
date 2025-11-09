@@ -17,9 +17,11 @@ pub async fn calculate_backward_probability(current_backward: f64, next_observat
     } else {
         1.0 - guess
     };
-    
+    let beta_if_known = p_obs_if_known * current_backward;
+    let beta_if_unknown = transition * p_obs_if_known * current_backward + (1.0 - transition) * p_obs_if_unknown * current_backward;
 
-    0.1
+    beta_if_known.max(beta_if_unknown)
+
 }
 
 pub async fn calculate_transistion_expectation(forward_prob: f64, backward_prob: f64, next_backward: f64, next_observation: bool, transition: f64, slip: f64, guess: f64) -> f64 {
