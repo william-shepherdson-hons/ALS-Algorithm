@@ -6,9 +6,9 @@ async fn main(){
     //let _ =  process_assistments();
     let params = EmResult {
         initial: 0.5,
-        transition: 0.5,
-        slip: 0.3,
-        guess: 0.3
+        transition: 0.2,
+        slip: 0.0,
+        guess: 0.0
     };
     let _ = expectation_maximisation(als_algorithm::models::models::Models::KnowledgeTracingModel, params, "src/data/test.csv").await;
 } 

@@ -1,42 +1,74 @@
-pub async fn calculate_mastery(initial: f64, transition: f64) -> f64  {
-    let mastery = initial + transition * (1.0 - initial);
-    mastery
+pub async fn calculate_mastery(initial: f64, transition: f64) -> f64 {
+    initial + transition * (1.0 - initial)
 }
+
 pub async fn calculate_success(mastery: f64, slip: f64, guess: f64) -> f64 {
-    let sucess = guess * (1.0 - mastery) + (1.0 - slip) * mastery;
-    sucess
-}
-pub async fn calculate_backward_probability(current_backward: f64, next_observation: bool, slip: f64 , guess: f64, transition: f64) -> f64 {
-    let p_obs_if_known = if next_observation {
-        1.0 - slip
-    } else {
-        slip
-    };
-    let p_obs_if_unknown = if next_observation {
-        guess
-    } else {
-        1.0 - guess
-    };
-    let beta_if_known = p_obs_if_known * current_backward;
-    let beta_if_unknown = transition * p_obs_if_known * current_backward + (1.0 - transition) * p_obs_if_unknown * current_backward;
-
-    beta_if_known.max(beta_if_unknown)
-
+    guess * (1.0 - mastery) + (1.0 - slip) * mastery
 }
 
-pub async fn calculate_transistion_expectation(forward_prob: f64, next_backward: f64, next_observation: bool, transition: f64, slip: f64) -> f64 {
-    let p_unknown_t = 1.0 - forward_prob;
-    
-    let p_obs_if_known = if next_observation {
-        1.0 - slip
-    } else {
-        slip
-    };
-    
-    let xi = p_unknown_t * transition * p_obs_if_known * next_backward;
-    
-    xi
+pub async fn calculate_forward_pair_from_marginal(
+    p_known_t: f64,
+    transition: f64,
+    slip: f64,
+    guess: f64,
+    observation_t_plus1: bool,
+) -> (f64, f64) {
+    let b_k = if observation_t_plus1 { 1.0 - slip } else { slip };
+    let b_u = if observation_t_plus1 { guess } else { 1.0 - guess };
+    let p_unknown_t = 1.0 - p_known_t;
+    let a_kk = 1.0;
+    let a_uk = transition;
+    let a_ku = 0.0;
+    let a_uu = 1.0 - transition;
+    let alpha_k_next = (p_known_t * a_kk + p_unknown_t * a_uk) * b_k;
+    let alpha_u_next = (p_known_t * a_ku + p_unknown_t * a_uu) * b_u;
+    (alpha_k_next, alpha_u_next)
 }
+
+pub async fn calculate_backward_pair(
+    beta_next_k: f64,
+    beta_next_u: f64,
+    next_observation: bool,
+    transition: f64,
+    slip: f64,
+    guess: f64,
+) -> (f64, f64) {
+    let b_k = if next_observation { 1.0 - slip } else { slip };
+    let b_u = if next_observation { guess } else { 1.0 - guess };
+    let a_kk = 1.0;
+    let a_uk = transition;
+    let a_ku = 0.0;
+    let a_uu = 1.0 - transition;
+    let beta_k = a_kk * b_k * beta_next_k + a_ku * b_u * beta_next_u;
+    let beta_u = a_uk * b_k * beta_next_k + a_uu * b_u * beta_next_u;
+    (beta_k, beta_u)
+}
+
+pub async fn calculate_transition_expectation_pair(
+    alpha_t_k: f64,
+    alpha_t_u: f64,
+    beta_t1_k: f64,
+    beta_t1_u: f64,
+    obs_t1: bool,
+    transition: f64,
+    slip: f64,
+    guess: f64,
+) -> f64 {
+    let b_k = if obs_t1 { 1.0 - slip } else { slip };
+    let b_u = if obs_t1 { guess } else { 1.0 - guess };
+    let a_uk = transition;
+    let a_kk = 1.0;
+    let a_ku = 0.0;
+    let a_uu = 1.0 - transition;
+    let numerator = alpha_t_u * a_uk * b_k * beta_t1_k;
+    let term_kk = alpha_t_k * a_kk * b_k * beta_t1_k;
+    let term_ku = alpha_t_k * a_ku * b_u * beta_t1_u;
+    let term_uk = alpha_t_u * a_uk * b_k * beta_t1_k;
+    let term_uu = alpha_t_u * a_uu * b_u * beta_t1_u;
+    let denom = term_kk + term_ku + term_uk + term_uu;
+    if denom > 0.0 { numerator / denom } else { 0.0 }
+}
+
 
 
 #[cfg(test)]
