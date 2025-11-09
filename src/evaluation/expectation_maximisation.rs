@@ -99,6 +99,24 @@ async fn smooth_probabilities(forward: &[f64], backward: &[f64]) -> Vec<f64> {
     smoothed
 } 
 
+async fn calculate_transition_expectations(observations: &[bool], forward: &[f64], backward: &[f64], params: &EmResult, model: &Models) -> Vec<f64> {
+    let n = observations.len();
+    let mut xi_values: Vec<f64> = Vec::with_capacity(n);
+    for t in 0..n {
+        let xi = match model {
+            Models::HiddenMarkovModel => {
+                hidden_markov_model::calculate_transistion_expectation(forward[t], backward[t+1], observations[t], params.transition, params.slip).await
+            },
+            Models::KnowledgeTracingModel => {
+                knowledge_tracing_model::calculate_transition_expectation(forward[t], forward[t+1]).await
+            }
+        };
+        xi_values.push(xi);
+    }
+
+    xi_values
+}
+
 async fn accumulate_sequence_counts(observations: &[bool], mastery_probs: &[f64], counts: &mut ExpectedCounts){
     counts.sum_initial_mastery += mastery_probs[0];
     counts.n_sequences += 1;
