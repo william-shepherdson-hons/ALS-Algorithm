@@ -79,6 +79,26 @@ async fn backwards_pass(observations: &[bool], params: &EmResult, model: &Models
 
 }
 
+async fn smooth_probabilities(forward: &[f64], backward: &[f64]) -> Vec<f64> {
+    let n = forward.len();
+    let mut smoothed = Vec::with_capacity(n);
+    let mut normalizer = 0.0;
+    
+    for t in 0..n {
+        let gamma = forward[t] * backward[t];
+        smoothed.push(gamma);
+        normalizer += gamma;
+    }
+    
+    if normalizer > 0.0 {
+        for gamma in smoothed.iter_mut() {
+            *gamma /= normalizer;
+        }
+    }
+    
+    smoothed
+} 
+
 async fn accumulate_sequence_counts(observations: &[bool], mastery_probs: &[f64], counts: &mut ExpectedCounts){
     counts.sum_initial_mastery += mastery_probs[0];
     counts.n_sequences += 1;
