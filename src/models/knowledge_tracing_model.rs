@@ -18,7 +18,33 @@ pub async fn calculate_success(mastery: f64, slip: f64, guess: f64) -> f64 {
     sucess
 }
 
+pub async fn calculate_backward_probability(current_backward: f64, next_observation: bool, slip: f64, guess: f64) -> f64 {
+    let p_obs_if_known = if next_observation {
+        1.0 - slip
+    } else {
+        slip
+    };
+    
+    let p_obs_if_unknown = if next_observation {
+        guess
+    } else {
+        1.0 - guess
+    };
+    
+    let beta_if_known = p_obs_if_known * current_backward;
+    let beta_if_unknown = p_obs_if_unknown * current_backward;
+    
+    beta_if_known.max(beta_if_unknown)
+}
 
+pub async fn calculate_transition_expectation(forward_prob: f64, next_forward_prob: f64) -> f64 {
+    let p_unknown_t = 1.0 - forward_prob;
+    
+    let knowledge_increase = (next_forward_prob - forward_prob).max(0.0);
+    let xi = p_unknown_t * knowledge_increase;
+    
+    xi
+}
 
 #[cfg(test)]
 mod tests {
