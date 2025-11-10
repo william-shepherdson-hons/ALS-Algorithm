@@ -1,8 +1,18 @@
-use als_algorithm::{data::preprocess::process_assistments, evaluation::em_algorithm::{em_result::EmResult, expectation_maximisation::expectation_maximisation}};
+use als_algorithm::{data::preprocess::process_assistments, evaluation::em_algorithm::{em_result::EmResult, expectation_maximisation::expectation_maximisation}, models::models::Models};
+use als_algorithm::evaluation::performance::performance_benchmark::benchmark_model_performance;
 
 use std::env::{self};
 #[tokio::main]
 async fn main(){
+    let model = Models::HiddenMarkovModel;
+    let initial = EmResult {
+        initial: 0.55,
+        transition: 0.03,
+        slip: 0.15,
+        guess: 0.47
+    }; 
+    let input = "src/data/test_data.csv";
+    let _ = benchmark_model_performance(model,initial,input).await;
 
     // Preprocess Data
     ///////////////////////////////////////////////
