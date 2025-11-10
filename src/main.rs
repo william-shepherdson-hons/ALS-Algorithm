@@ -4,7 +4,7 @@ use als_algorithm::evaluation::performance::performance_benchmark::benchmark_mod
 use std::env::{self};
 #[tokio::main]
 async fn main(){
-    let model = Models::HiddenMarkovModel;
+    let model = Models::KnowledgeTracingModel;
     let initial = EmResult {
         initial: 0.55,
         transition: 0.03,
