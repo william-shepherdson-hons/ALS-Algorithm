@@ -4,7 +4,7 @@ use als_algorithm::evaluation::performance::performance_benchmark::benchmark_mod
 use std::env::{self};
 #[tokio::main]
 async fn main(){
-    let model = Models::KnowledgeTracingModel;
+    let model = Models::HiddenMarkovModel;
     let initial = EmResult {
         initial: 0.55,
         transition: 0.03,
@@ -12,7 +12,7 @@ async fn main(){
         guess: 0.47
     }; 
     let input = "src/data/test_data.csv";
-    let _ = benchmark_model_performance(model,initial,input).await;
+    let _ = benchmark_model_performance(model,initial,input,1000).await;
 
     // Preprocess Data
     ///////////////////////////////////////////////

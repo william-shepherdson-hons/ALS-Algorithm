@@ -13,7 +13,6 @@ use crate::{
 
 
 async fn benchmark_hmm(users: &mut HashMap<u32, HashMap<u32, f64>>, records: &Vec<FormattedRecord>, transition: f64) -> Duration {
-    println!("Starting HMM benchmark on {} records", records.len());
     let now = Instant::now();
     for record in records {
         if let Some(skill_map) = users.get_mut(&record.user_id) {
@@ -28,7 +27,6 @@ async fn benchmark_hmm(users: &mut HashMap<u32, HashMap<u32, f64>>, records: &Ve
 }
 
 async fn benchmark_ktm(users: &mut HashMap<u32, HashMap<u32, f64>>, records: &Vec<FormattedRecord>, transition: f64, slip: f64, guess:f64) -> Duration {
-    println!("Starting KTM benchmark on {} records", records.len());
     let now = Instant::now();
     for record in records {
         if let Some(skill_map) = users.get_mut(&record.user_id) {
@@ -70,6 +68,16 @@ pub async fn benchmark_model_performance(model: Models, initial_parameters: EmRe
             .or_insert(initial_parameters.initial);
     }
     println!("Initialized {} students with skill maps.", users.len());
+    let mut total_time = Duration::new(0, 0);
+    for _ in  0..iterations {
+        total_time += benchmark_model_performance_single(model, initial_parameters, &records, &mut users.clone()).await?
+    }
+    let avg_time = total_time / iterations as u32;
+    println!(
+        "Completed {} iterations.\nAverage time per iteration: {:?}\nTotal time: {:?}",
+        iterations, avg_time, total_time
+    );
+
 
     Ok(())
 }
