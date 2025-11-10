@@ -1,8 +1,8 @@
-use crate::evaluation::iteration::Iteration;
+use crate::evaluation::em_algorithm::iteration::Iteration;
 use crate::models::knowledge_tracing_model;
-use crate::{evaluation::em_result::EmResult, models::hidden_markov_model};
+use crate::{evaluation::em_algorithm::em_result::EmResult, models::hidden_markov_model};
 use crate::models::models::Models;
-use crate::evaluation::formatted_record::FormattedRecord;
+use crate::evaluation::em_algorithm::formatted_record::FormattedRecord;
 use std::{collections::HashMap, error::Error};
 use csv::{Writer,ReaderBuilder};
 

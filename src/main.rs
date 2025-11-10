@@ -1,4 +1,4 @@
-use als_algorithm::{data::preprocess::process_assistments, evaluation::{em_result::EmResult, expectation_maximisation::expectation_maximisation}};
+use als_algorithm::{data::preprocess::process_assistments, evaluation::em_algorithm::{em_result::EmResult, expectation_maximisation::expectation_maximisation}};
 
 
 #[tokio::main]

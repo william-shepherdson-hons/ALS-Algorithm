@@ -6,7 +6,7 @@ use rand::seq::SliceRandom;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use csv::{Writer, ReaderBuilder};
-use crate::evaluation::formatted_record::FormattedRecord;
+use crate::evaluation::em_algorithm::formatted_record::FormattedRecord;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Record {
