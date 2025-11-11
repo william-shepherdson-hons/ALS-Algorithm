@@ -1,4 +1,4 @@
-use crate::{evaluation::{em_algorithm::{em_result::EmResult, formatted_record::FormattedRecord}, performance::{load_data::{load_data, load_students}, prediction::{self, Prediction}}}, models::{hidden_markov_model, knowledge_tracing_model, models::Models}};
+use crate::{evaluation::{em_algorithm::{em_result::EmResult, formatted_record::FormattedRecord}, performance::{load_data::{load_data, load_students}, prediction::{Prediction}}}, models::{hidden_markov_model, knowledge_tracing_model, models::Models}};
 use std::{collections::HashMap, error::Error};
 pub async fn benchmark_model_with_auc(model: Models, initial_parameters: EmResult, input: &str) -> Result<(), Box<dyn Error>> {
     let records = load_data(input).await?;
@@ -12,6 +12,14 @@ pub async fn benchmark_model_with_auc(model: Models, initial_parameters: EmResul
             evaluate_ktm(&mut users, &records, initial_parameters.transition, initial_parameters.slip, initial_parameters.guess).await
         }
     };
+
+    let auc = calculate_auc_roc(predictions.clone());
+    let roc_points = calculate_roc_curve(predictions);
+
+    println!("\n=== Model Evaluation Results ===");
+    println!("Model: {:?}", model);
+    println!("AUC-ROC: {:.4}", auc);
+    println!("Total predictions: {}", roc_points.len() - 1);
 
     Ok(())
 }
@@ -60,3 +68,67 @@ async fn evaluate_ktm(users: &mut HashMap<u32, HashMap<u32, f64>>,records: &Vec<
    predictions
 }
 
+fn calculate_auc_roc(mut predictions: Vec<Prediction>) -> f64 {
+    if predictions.is_empty() {
+        return 0.5
+    }
+    predictions.sort_by(|a, b| b.probability.partial_cmp(&a.probability).unwrap());
+
+    let total_positives = predictions.iter().filter(|p| p.actual).count() as f64;
+    let total_negatives = predictions.len() as f64 - total_positives;
+
+    if total_positives == 0.0 || total_negatives == 0.0 {
+        return 0.5;
+    }
+
+    let mut tp = 0.0;
+    let mut fp = 0.0;
+    let mut auc = 0.0;
+    let mut prev_fp = 0.0;
+
+    for pred in predictions {
+        if pred.actual {
+            tp += 1.0;
+        } else {
+            fp += 1.0;
+
+            auc += (fp - prev_fp) * tp;
+            prev_fp = fp;
+        }
+    }
+
+    auc / (total_positives * total_negatives)
+
+
+}
+fn calculate_roc_curve(mut predictions: Vec<Prediction>) -> Vec<(f64, f64)> {
+    if predictions.is_empty() {
+        return vec![(0.0, 0.0), (1.0, 1.0)];
+    }
+
+    predictions.sort_by(|a, b| b.probability.partial_cmp(&a.probability).unwrap());
+
+    let total_positives = predictions.iter().filter(|p| p.actual).count() as f64;
+    let total_negatives = predictions.len() as f64 - total_positives;
+
+    if total_positives == 0.0 || total_negatives == 0.0 {
+        return vec![(0.0, 0.0), (1.0, 1.0)];
+    }
+
+    let mut roc_points = vec![(0.0, 0.0)];
+    let mut tp = 0.0;
+    let mut fp = 0.0;
+
+    for pred in predictions {
+        if pred.actual {
+            tp += 1.0;
+        } else {
+            fp += 1.0;
+        }
+        let tpr = tp / total_positives;
+        let fpr = fp / total_negatives;
+        roc_points.push((fpr, tpr));
+    }
+
+    roc_points
+}
