@@ -1,3 +1,5 @@
+use csv::Writer;
+
 use crate::{evaluation::{em_algorithm::{em_result::EmResult, formatted_record::FormattedRecord}, performance::{load_data::{load_data, load_students}, prediction::{Prediction}}}, models::{hidden_markov_model, knowledge_tracing_model, models::Models}};
 use std::{collections::HashMap, error::Error};
 pub async fn benchmark_model_with_auc(model: Models, initial_parameters: EmResult, input: &str) -> Result<(), Box<dyn Error>> {
@@ -21,6 +23,13 @@ pub async fn benchmark_model_with_auc(model: Models, initial_parameters: EmResul
     println!("AUC-ROC: {:.4}", auc);
     println!("Total predictions: {}", roc_points.len() - 1);
 
+    let path = format!("src/data/{:?}_auc_roc.csv", model);
+
+    let mut writer = Writer::from_path(path)?;
+    writer.write_record(&["fpr", "tpr"])?;
+    for (fpr, tpr) in roc_points {
+        writer.write_record(&[&fpr.to_string(), &tpr.to_string()])?;
+    }
     Ok(())
 }
 
