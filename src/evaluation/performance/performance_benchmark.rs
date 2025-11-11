@@ -7,7 +7,7 @@ use crate::{
     models::hidden_markov_model,
     models::knowledge_tracing_model,
     models::models::Models,
-    evaluation::performance::load_data::load_data
+    evaluation::performance::load_data::{load_data, load_students}
 };
 
 
@@ -44,16 +44,7 @@ async fn benchmark_ktm(users: &mut HashMap<u32, HashMap<u32, f64>>, records: &Ve
 
 pub async fn benchmark_model_performance(model: Models, initial_parameters: EmResult, input: &str, iterations: usize) -> Result<(), Box<dyn Error>> {
     let records = load_data(input).await?;
-    let mut users: HashMap<u32, HashMap<u32, f64>> = HashMap::new();
-
-    for record in &records {
-        let skill_map = users
-            .entry(record.user_id)
-            .or_insert_with(HashMap::new);
-        skill_map
-            .entry(record.skill_id)
-            .or_insert(initial_parameters.initial);
-    }
+    let users = load_students(&records, initial_parameters).await?;
     println!("Initialized {} students with skill maps.", users.len());
     let mut total_time = Duration::new(0, 0);
     for _ in  0..iterations {
