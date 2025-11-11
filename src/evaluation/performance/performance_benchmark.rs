@@ -1,13 +1,13 @@
 use std::{collections::HashMap, time::Duration};
 use std::error::Error;
 use std::time::Instant;
-use csv::ReaderBuilder;
 
 use crate::{
     evaluation::em_algorithm::{em_result::EmResult, formatted_record::FormattedRecord},
     models::hidden_markov_model,
     models::knowledge_tracing_model,
     models::models::Models,
+    evaluation::performance::load_data::load_data
 };
 
 
@@ -40,20 +40,7 @@ async fn benchmark_ktm(users: &mut HashMap<u32, HashMap<u32, f64>>, records: &Ve
 }
 
 
-async fn load_data(input: &str) -> Result<Vec<FormattedRecord>, Box<dyn  Error>> {
-    println!("Starting data loading benchmark");
-    let now = Instant::now();
 
-    let mut reader = ReaderBuilder::new()
-        .trim(csv::Trim::All)
-        .from_path(input)?;
-    let records: Vec<FormattedRecord> = reader.deserialize().collect::<Result<_, _>>()?;
-
-    let elapsed = now.elapsed();
-    println!("Data Loading: {:?} Loaded: {:?} records", elapsed, records.len());
-
-    Ok(records)
-}
 
 pub async fn benchmark_model_performance(model: Models, initial_parameters: EmResult, input: &str, iterations: usize) -> Result<(), Box<dyn Error>> {
     let records = load_data(input).await?;
