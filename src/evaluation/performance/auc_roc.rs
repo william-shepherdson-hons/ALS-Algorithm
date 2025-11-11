@@ -1,0 +1,28 @@
+use crate::{evaluation::{em_algorithm::{em_result::EmResult, formatted_record::FormattedRecord}, performance::{load_data::{load_data, load_students}, prediction::{self, Prediction}}}, models::{hidden_markov_model, models::Models}};
+use std::{collections::HashMap, error::Error};
+pub async fn benchmark_model_with_auc(model: Models, initial_parameters: EmResult, input: &str) -> Result<(), Box<dyn Error>> {
+    let records = load_data(input).await?;
+    let users = load_students(&records, initial_parameters).await?;
+    println!("Initialized {} students with skill maps.", users.len());
+
+
+    Ok(())
+}
+
+
+async fn evaluate_hmm(users: &mut HashMap<u32, HashMap<u32, f64>>, records: &Vec<FormattedRecord>, transition: f64) ->  Vec<Prediction> {
+    let mut predictions = Vec::new();
+    for record in records {
+        if let Some(skill_map) = users.get_mut(&record.user_id) {
+            if let Some(prob) = skill_map.get_mut(&record.skill_id) {
+                predictions.push(Prediction {
+                    probability: *prob,
+                    actual: record.correct == 1
+                });
+                let new_prob = hidden_markov_model::calculate_mastery(*prob, transition).await;
+                *prob = new_prob;
+            }
+        }
+    }
+    predictions
+}
