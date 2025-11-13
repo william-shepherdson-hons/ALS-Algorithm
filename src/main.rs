@@ -6,7 +6,7 @@ use std::env::{self};
 async fn main(){
 
     let results = grid_search_hyperparameters(
-        Models::HiddenMarkovModel,
+        Models::KnowledgeTracingModel,
         "src/data/train_data.csv",
         "auc",
     ).await.unwrap();

@@ -43,10 +43,10 @@ pub async fn grid_search_hyperparameters(
     println!("Optimizing for: {}\n", optimize_for);
 
     // Define parameter grid
-    let initial_range = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30,0.5];
-    let transition_range = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30,0.5];
-    let slip_range = vec![0.05, 0.10, 0.15, 0.20,0.5];
-    let guess_range = vec![0.10, 0.15, 0.20, 0.25, 0.30,0.5];
+    let initial_range = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30];
+    let transition_range = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30];
+    let slip_range = vec![0.05, 0.10, 0.15, 0.20];
+    let guess_range = vec![0.10, 0.15, 0.20, 0.25, 0.30];
 
     let total_combinations = initial_range.len() 
         * transition_range.len() 
