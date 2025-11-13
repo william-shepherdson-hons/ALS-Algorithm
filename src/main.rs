@@ -1,18 +1,32 @@
-use als_algorithm::{data::preprocess::process_assistments, evaluation::{em_algorithm::{em_result::EmResult, expectation_maximisation::expectation_maximisation}, performance::auc_roc::benchmark_model_with_auc}, models::models::Models};
+use als_algorithm::{data::preprocess::process_assistments, evaluation::{em_algorithm::{em_result::EmResult, expectation_maximisation::expectation_maximisation}, grid_search::grid_search::grid_search_hyperparameters, performance::auc_roc::benchmark_model_with_auc}, models::models::Models};
 use als_algorithm::evaluation::performance::performance_benchmark::benchmark_model_performance;
 
 use std::env::{self};
 #[tokio::main]
 async fn main(){
-    let model = Models::KnowledgeTracingModel;
-    let initial = EmResult {
-        initial: 0.55,
-        transition: 0.03,
-        slip: 0.15,
-        guess: 0.47
-    }; 
-    let input = "src/data/test_data.csv";
-    let _ = benchmark_model_with_auc(model, initial, input).await;
+
+    let results = grid_search_hyperparameters(
+        Models::HiddenMarkovModel,
+        "src/data/train_data.csv",
+        "auc",
+    ).await.unwrap();
+
+    // Best parameters
+    let best = &results[0];
+    println!("Best parameters: init={:.3}, trans={:.3}, slip={:.3}, guess={:.3}",
+            best.initial, best.transition, best.slip, best.guess);
+
+
+
+    // let model = Models::KnowledgeTracingModel;
+    // let initial = EmResult {
+    //     initial: 0.3,
+    //     transition: 0.15,
+    //     slip: 0.15,
+    //     guess: 0.30
+    // }; 
+    // let input = "src/data/test_data.csv";
+    // let _ = benchmark_model_with_auc(model, initial, input).await;
 
     // Preprocess Data
     ///////////////////////////////////////////////
