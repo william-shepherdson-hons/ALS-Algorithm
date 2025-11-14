@@ -1,11 +1,9 @@
 use crate::evaluation::em_algorithm::iteration::Iteration;
-use crate::models::knowledge_tracing_model;
-use crate::{evaluation::em_algorithm::em_result::EmResult, models::hidden_markov_model};
+use crate::evaluation::em_algorithm::em_result::EmResult;
 use crate::models::models::Models;
 use crate::evaluation::em_algorithm::formatted_record::FormattedRecord;
 use std::{collections::HashMap, error::Error};
-use csv::{Writer,ReaderBuilder};
-
+use csv::{Writer, ReaderBuilder};
 
 struct UserSkillSequence {
     observations: Vec<bool>,
@@ -37,243 +35,246 @@ impl ExpectedCounts {
     }
 }
 
-/// Forward pass (kept original structure using calculate_mastery)
-async fn forward_pass(observations: &[bool], params: &EmResult, model: &Models) -> Vec<f64> {
-    let mut mastery_probs = Vec::with_capacity(observations.len() + 1);
-    mastery_probs.push(params.initial);
-
-    for &observed_correct in observations {
-        let current_mastery = *mastery_probs.last().unwrap();
-        let next_mastery = match model {
-            Models::HiddenMarkovModel => {
-                hidden_markov_model::calculate_mastery(current_mastery, params.transition).await
-            }
-            Models::KnowledgeTracingModel => {
-                knowledge_tracing_model::calculate_mastery(
-                    current_mastery,
-                    params.transition,
-                    params.slip,
-                    params.guess,
-                    observed_correct,
-                )
-                .await
-            }
-        };
-        mastery_probs.push(next_mastery.min(1.0).max(0.0));
+/// Compute emission probability P(observation | state)
+fn emission_probability(state_known: bool, observed_correct: bool, params: &EmResult) -> f64 {
+    match (state_known, observed_correct) {
+        (true, true) => 1.0 - params.slip,      // Known and correct
+        (true, false) => params.slip,            // Known but incorrect (slip)
+        (false, true) => params.guess,           // Unknown but correct (guess)
+        (false, false) => 1.0 - params.guess,    // Unknown and incorrect
     }
-    mastery_probs
 }
 
-/// Fixed backward pass: computes backward_known and backward_unknown for 2-state model
-async fn backwards_pass(
+/// Get transition probabilities based on model type
+fn get_transition_probs(model: &Models, params: &EmResult) -> (f64, f64, f64, f64) {
+    match model {
+        Models::HiddenMarkovModel => {
+            // Symmetric transitions
+            let p_kk = params.transition;      // known -> known
+            let p_ku = 1.0 - params.transition; // known -> unknown
+            let p_uk = params.transition;       // unknown -> known (learn)
+            let p_uu = 1.0 - params.transition; // unknown -> unknown
+            (p_kk, p_ku, p_uk, p_uu)
+        }
+        Models::KnowledgeTracingModel => {
+            // One-way transitions (can't unlearn)
+            let p_kk = 1.0;                     // known -> known (always)
+            let p_ku = 0.0;                     // known -> unknown (never)
+            let p_uk = params.transition;       // unknown -> known (learn)
+            let p_uu = 1.0 - params.transition; // unknown -> unknown
+            (p_kk, p_ku, p_uk, p_uu)
+        }
+    }
+}
+
+/// Forward pass: compute alpha values (filtered probabilities)
+/// Returns (alpha_known, alpha_unknown) for each time step
+async fn forward_pass(
     observations: &[bool],
     params: &EmResult,
     model: &Models,
 ) -> (Vec<f64>, Vec<f64>) {
     let n = observations.len();
-    let mut backward_known = vec![0.0; n + 1];
-    let mut backward_unknown = vec![0.0; n + 1];
-    backward_known[n] = 1.0;
-    backward_unknown[n] = 1.0;
+    let mut alpha_known = Vec::with_capacity(n + 1);
+    let mut alpha_unknown = Vec::with_capacity(n + 1);
 
-    let emission = |state_known: bool, obs: bool, p: &EmResult| -> f64 {
-        if obs {
-            if state_known {
-                1.0 - p.slip
-            } else {
-                p.guess
-            }
+    // Initialize with prior
+    alpha_known.push(params.initial);
+    alpha_unknown.push(1.0 - params.initial);
+
+    let (p_kk, p_ku, p_uk, p_uu) = get_transition_probs(model, params);
+
+    for &obs in observations {
+        let prev_k = *alpha_known.last().unwrap();
+        let prev_u = *alpha_unknown.last().unwrap();
+
+        // Emission probabilities
+        let e_known = emission_probability(true, obs, params);
+        let e_unknown = emission_probability(false, obs, params);
+
+        // Forward equations: alpha(t) = P(obs(t) | state) * sum_s P(state | s) * alpha(s, t-1)
+        let new_k = e_known * (prev_k * p_kk + prev_u * p_uk);
+        let new_u = e_unknown * (prev_k * p_ku + prev_u * p_uu);
+
+        // Normalize to prevent numerical underflow
+        let norm = new_k + new_u;
+        if norm > 0.0 {
+            alpha_known.push(new_k / norm);
+            alpha_unknown.push(new_u / norm);
         } else {
-            if state_known {
-                p.slip
-            } else {
-                1.0 - p.guess
-            }
+            // Fallback if both are zero (shouldn't happen with proper parameters)
+            alpha_known.push(prev_k);
+            alpha_unknown.push(prev_u);
         }
-    };
-
-    for t in (0..n).rev() {
-        let obs_next = observations[t];
-
-        match model {
-            Models::HiddenMarkovModel => {
-                let p_kk = params.transition;
-                let p_ku = 1.0 - params.transition;
-                let p_uk = params.transition;
-                let p_uu = 1.0 - params.transition;
-
-                let e_known = emission(true, obs_next, params);
-                let e_unknown = emission(false, obs_next, params);
-
-                backward_known[t] = p_kk * e_known * backward_known[t + 1]
-                    + p_ku * e_unknown * backward_unknown[t + 1];
-                backward_unknown[t] = p_uk * e_known * backward_known[t + 1]
-                    + p_uu * e_unknown * backward_unknown[t + 1];
-            }
-            Models::KnowledgeTracingModel => {
-                let p_kk = 1.0;
-                let p_ku = 0.0;
-                let p_uk = params.transition;
-                let p_uu = 1.0 - params.transition;
-
-                let e_known = emission(true, obs_next, params);
-                let e_unknown = emission(false, obs_next, params);
-
-                backward_known[t] = p_kk * e_known * backward_known[t + 1]
-                    + p_ku * e_unknown * backward_unknown[t + 1];
-                backward_unknown[t] = p_uk * e_known * backward_known[t + 1]
-                    + p_uu * e_unknown * backward_unknown[t + 1];
-            }
-        }
-
-        backward_known[t] = backward_known[t].max(0.0);
-        backward_unknown[t] = backward_unknown[t].max(0.0);
     }
 
-    (backward_known, backward_unknown)
+    (alpha_known, alpha_unknown)
 }
 
-/// Per-time-step posterior P(known_t | all obs)
-fn smooth_probabilities(
-    forward: &[f64],
-    backward_known: &[f64],
-    backward_unknown: &[f64],
+/// Backward pass: compute beta values (backward messages)
+/// Returns (beta_known, beta_unknown) for each time step
+async fn backward_pass(
+    observations: &[bool],
+    params: &EmResult,
+    model: &Models,
+) -> (Vec<f64>, Vec<f64>) {
+    let n = observations.len();
+    let mut beta_known = vec![0.0; n + 1];
+    let mut beta_unknown = vec![0.0; n + 1];
+
+    // Initialize: beta(T) = 1 for all states
+    beta_known[n] = 1.0;
+    beta_unknown[n] = 1.0;
+
+    let (p_kk, p_ku, p_uk, p_uu) = get_transition_probs(model, params);
+
+    // Backward recursion
+    for t in (0..n).rev() {
+        let obs = observations[t];
+
+        let e_known = emission_probability(true, obs, params);
+        let e_unknown = emission_probability(false, obs, params);
+
+        // Backward equations: beta(t-1) = sum_s P(state(t)=s | state(t-1)) * P(obs(t) | s) * beta(s, t)
+        beta_known[t] = p_kk * e_known * beta_known[t + 1] + p_ku * e_unknown * beta_unknown[t + 1];
+        beta_unknown[t] = p_uk * e_known * beta_known[t + 1] + p_uu * e_unknown * beta_unknown[t + 1];
+
+        // Normalize to prevent overflow/underflow
+        let norm = beta_known[t] + beta_unknown[t];
+        if norm > 0.0 {
+            beta_known[t] /= norm;
+            beta_unknown[t] /= norm;
+        }
+    }
+
+    (beta_known, beta_unknown)
+}
+
+/// Compute smoothed probabilities: P(state | all observations)
+fn compute_gamma(
+    alpha_known: &[f64],
+    alpha_unknown: &[f64],
+    beta_known: &[f64],
+    beta_unknown: &[f64],
 ) -> Vec<f64> {
-    let n = forward.len();
-    let mut smoothed = Vec::with_capacity(n);
+    let n = alpha_known.len();
+    let mut gamma_known = Vec::with_capacity(n);
 
     for t in 0..n {
-        let alpha_known = forward[t];
-        let beta_known = backward_known[t];
-        let alpha_unknown = 1.0 - alpha_known;
-        let beta_unknown = backward_unknown[t];
+        let gamma_k = alpha_known[t] * beta_known[t];
+        let gamma_u = alpha_unknown[t] * beta_unknown[t];
+        let total = gamma_k + gamma_u;
 
-        let num_known = alpha_known * beta_known;
-        let num_unknown = alpha_unknown * beta_unknown;
-        let denom = num_known + num_unknown;
-
-        smoothed.push(if denom > 0.0 {
-            num_known / denom
+        let prob_known = if total > 0.0 {
+            gamma_k / total
         } else {
-            alpha_known
-        });
+            alpha_known[t] // Fallback to filtered estimate
+        };
+
+        gamma_known.push(prob_known.min(1.0).max(0.0));
     }
-    smoothed
+
+    gamma_known
 }
 
-/// Compute expected number of unknown→known transitions per time step
-async fn calculate_transition_expectations(
+/// Compute transition expectations: P(state(t-1)=i, state(t)=j | all observations)
+/// Returns xi[t] = P(unknown at t-1, known at t | all obs) for each transition
+async fn compute_xi(
     observations: &[bool],
-    forward: &[f64],
-    backward_known: &[f64],
-    backward_unknown: &[f64],
+    alpha_known: &[f64],
+    alpha_unknown: &[f64],
+    beta_known: &[f64],
+    beta_unknown: &[f64],
     params: &EmResult,
     model: &Models,
 ) -> Vec<f64> {
     let n = observations.len();
-    let mut xi_values: Vec<f64> = Vec::with_capacity(n);
+    let mut xi_uk = Vec::with_capacity(n); // unknown -> known transitions
 
-    let emission = |state_known: bool, obs: bool, p: &EmResult| -> f64 {
-        if obs {
-            if state_known {
-                1.0 - p.slip
-            } else {
-                p.guess
-            }
-        } else {
-            if state_known {
-                p.slip
-            } else {
-                1.0 - p.guess
-            }
-        }
-    };
+    let (p_kk, p_ku, p_uk, p_uu) = get_transition_probs(model, params);
 
     for t in 0..n {
-        let alpha_known_t = forward[t];
-        let alpha_unknown_t = 1.0 - alpha_known_t;
-        let obs_tp1 = observations[t];
-        let e_known = emission(true, obs_tp1, params);
-        let e_unknown = emission(false, obs_tp1, params);
+        let obs = observations[t];
 
-        let (p_uk, p_uu, p_kk, p_ku) = match model {
-            Models::HiddenMarkovModel => {
-                let p_kk = params.transition;
-                let p_ku = 1.0 - params.transition;
-                let p_uk = params.transition;
-                let p_uu = 1.0 - params.transition;
-                (p_uk, p_uu, p_kk, p_ku)
-            }
-            Models::KnowledgeTracingModel => {
-                let p_kk = 1.0;
-                let p_ku = 0.0;
-                let p_uk = params.transition;
-                let p_uu = 1.0 - params.transition;
-                (p_uk, p_uu, p_kk, p_ku)
-            }
+        let e_known = emission_probability(true, obs, params);
+        let e_unknown = emission_probability(false, obs, params);
+
+        // Joint probability of each transition and observation at t
+        let j_kk = alpha_known[t] * p_kk * e_known * beta_known[t + 1];
+        let j_ku = alpha_known[t] * p_ku * e_unknown * beta_unknown[t + 1];
+        let j_uk = alpha_unknown[t] * p_uk * e_known * beta_known[t + 1];
+        let j_uu = alpha_unknown[t] * p_uu * e_unknown * beta_unknown[t + 1];
+
+        let total = j_kk + j_ku + j_uk + j_uu;
+
+        let prob_uk = if total > 0.0 {
+            j_uk / total
+        } else {
+            0.0
         };
 
-        let bk_tp1 = backward_known[t + 1];
-        let bu_tp1 = backward_unknown[t + 1];
-
-        let j_kk = alpha_known_t * p_kk * e_known * bk_tp1;
-        let j_uk = alpha_unknown_t * p_uk * e_known * bk_tp1;
-        let j_uu = alpha_unknown_t * p_uu * e_unknown * bu_tp1;
-        let j_ku = alpha_known_t * p_ku * e_unknown * bu_tp1;
-
-        let denom = j_kk + j_uk + j_uu + j_ku;
-        let xi = if denom > 0.0 { j_uk / denom } else { 0.0 };
-
-        xi_values.push(xi.max(0.0));
+        xi_uk.push(prob_uk.min(1.0).max(0.0));
     }
 
-    xi_values
+    xi_uk
 }
 
-/// Accumulate expected counts for one user-skill sequence
-async fn accumulate_sequence_counts(
+/// Accumulate expected counts from one sequence (E-step)
+async fn accumulate_counts(
     observations: &[bool],
-    forward: &[f64],
-    backward_known: &[f64],
-    backward_unknown: &[f64],
     params: &EmResult,
     model: &Models,
     counts: &mut ExpectedCounts,
 ) {
-    let smoothed = smooth_probabilities(forward, backward_known, backward_unknown);
+    if observations.is_empty() {
+        return;
+    }
 
-    counts.sum_initial_mastery += smoothed[0];
-    counts.n_sequences += 1;
+    // Forward-backward algorithm
+    let (alpha_known, alpha_unknown) = forward_pass(observations, params, model).await;
+    let (beta_known, beta_unknown) = backward_pass(observations, params, model).await;
 
-    let xi_values = calculate_transition_expectations(
+    // Compute smoothed state probabilities
+    let gamma_known = compute_gamma(&alpha_known, &alpha_unknown, &beta_known, &beta_unknown);
+
+    // Compute transition expectations
+    let xi_uk = compute_xi(
         observations,
-        forward,
-        backward_known,
-        backward_unknown,
+        &alpha_known,
+        &alpha_unknown,
+        &beta_known,
+        &beta_unknown,
         params,
         model,
     )
     .await;
 
+    // Accumulate initial state counts
+    counts.sum_initial_mastery += gamma_known[0];
+    counts.n_sequences += 1;
+
+    // Accumulate transition and emission counts
     for t in 0..observations.len() {
-        let p_known = smoothed[t];
-        let p_unknown = 1.0 - p_known;
+        let prob_known = gamma_known[t];
+        let prob_unknown = 1.0 - prob_known;
 
-        counts.sum_learned += xi_values[t];
-        counts.sum_opportunities_unknown += p_unknown;
+        // Transition counts (learning)
+        counts.sum_learned += xi_uk[t];
+        counts.sum_opportunities_unknown += prob_unknown;
 
+        // Emission counts
         if observations[t] {
-            counts.sum_correct_while_known += p_known;
-            counts.sum_correct_while_unknown += p_unknown;
+            counts.sum_correct_while_known += prob_known;
+            counts.sum_correct_while_unknown += prob_unknown;
         }
 
-        counts.sum_known += p_known;
-        counts.sum_unknown += p_unknown;
+        counts.sum_known += prob_known;
+        counts.sum_unknown += prob_unknown;
     }
 }
 
-/// Maximization step — unchanged
-fn m_step_update(counts: &ExpectedCounts) -> EmResult {
+/// M-step: update parameters based on expected counts
+fn m_step(counts: &ExpectedCounts) -> EmResult {
     let initial = if counts.n_sequences > 0 {
         (counts.sum_initial_mastery / counts.n_sequences as f64)
             .min(0.99)
@@ -306,6 +307,7 @@ fn m_step_update(counts: &ExpectedCounts) -> EmResult {
         0.2
     };
 
+    // Ensure guess + slip < 1 (identifiability constraint)
     let sum = guess + slip;
     let (guess, slip) = if sum >= 1.0 {
         let scale = 0.98 / sum;
@@ -322,24 +324,34 @@ fn m_step_update(counts: &ExpectedCounts) -> EmResult {
     }
 }
 
-/// Main EM loop
+/// Main EM algorithm
 pub async fn expectation_maximisation(
     model: Models,
     initial: EmResult,
     path: &str,
-    output: &str
+    output: &str,
 ) -> Result<EmResult, Box<dyn Error>> {
-    let mut reader = ReaderBuilder::new().trim(csv::Trim::All).from_path(path)?;
+    // Load and parse data
+    let mut reader = ReaderBuilder::new()
+        .trim(csv::Trim::All)
+        .from_path(path)?;
     let mut writer = Writer::from_path(output)?;
-    let mut records: Vec<FormattedRecord> = reader.deserialize().collect::<Result<_, _>>()?;
+    let mut records: Vec<FormattedRecord> = reader
+        .deserialize()
+        .collect::<Result<_, _>>()?;
+
+    // Sort by user, skill, and time
     records.sort_by_key(|r| (r.user_id, r.skill_id, r.times_applied));
 
+    // Group into sequences by (user_id, skill_id)
     let mut sequences: HashMap<(u32, u32), UserSkillSequence> = HashMap::new();
     for record in records {
         let key = (record.user_id, record.skill_id);
-        let sequence = sequences.entry(key).or_insert_with(|| UserSkillSequence {
-            observations: Vec::new(),
-        });
+        let sequence = sequences
+            .entry(key)
+            .or_insert_with(|| UserSkillSequence {
+                observations: Vec::new(),
+            });
         sequence.observations.push(record.correct == 1);
     }
 
@@ -347,59 +359,59 @@ pub async fn expectation_maximisation(
     const TOLERANCE: f64 = 1e-4;
     let mut params = initial;
 
-    println!(
-        "Starting EM with {} sequences",
-        sequences.len()
-    );
+    println!("Starting EM with {} sequences", sequences.len());
     println!(
         "Initial params: L0={:.4}, T={:.4}, S={:.4}, G={:.4}",
         params.initial, params.transition, params.slip, params.guess
     );
 
+    // EM iterations
     for iteration in 0..MAX_ITERATIONS {
         let mut counts = ExpectedCounts::new();
 
+        // E-step: compute expected counts from all sequences
         for (_key, sequence) in &sequences {
-            let forward = forward_pass(&sequence.observations, &params, &model).await;
-            let (backward_known, backward_unknown) =
-                backwards_pass(&sequence.observations, &params, &model).await;
-            accumulate_sequence_counts(
-                &sequence.observations,
-                &forward,
-                &backward_known,
-                &backward_unknown,
-                &params,
-                &model,
-                &mut counts,
-            )
-            .await;
+            accumulate_counts(&sequence.observations, &params, &model, &mut counts).await;
         }
 
-        let new_params = m_step_update(&counts);
+        // M-step: update parameters
+        let new_params = m_step(&counts);
 
+        // Check convergence
         let diff = (new_params.initial - params.initial).abs()
             + (new_params.transition - params.transition).abs()
             + (new_params.slip - params.slip).abs()
             + (new_params.guess - params.guess).abs();
 
-        
+        println!(
+            "Iteration {}: L0={:.4}, T={:.4}, S={:.4}, G={:.4}, diff={:.6}",
+            iteration + 1,
+            new_params.initial,
+            new_params.transition,
+            new_params.slip,
+            new_params.guess,
+            diff
+        );
+
+        // Write iteration results
         let iteration_output = Iteration {
-            iteration: iteration,
+            iteration,
             initial: new_params.initial,
             transition: new_params.transition,
             slip: new_params.slip,
             guess: new_params.guess,
-            diff: diff
+            diff,
         };
         writer.serialize(&iteration_output)?;
         writer.flush()?;
 
         params = new_params;
+
         if diff < TOLERANCE {
             println!("Converged after {} iterations", iteration + 1);
             break;
         }
     }
-    
+
     Ok(params)
 }
