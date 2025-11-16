@@ -415,3 +415,352 @@ pub async fn expectation_maximisation(
 
     Ok(params)
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::models::Models;
+    use crate::evaluation::em_algorithm::em_result::EmResult;
+    use approx::assert_relative_eq;
+
+    // Helper function to create test parameters
+    fn test_params() -> EmResult {
+        EmResult {
+            initial: 0.3,
+            transition: 0.2,
+            slip: 0.1,
+            guess: 0.25,
+        }
+    }
+
+    #[test]
+    fn test_emission_probability() {
+        let params = test_params();
+        
+        // Known and correct: 1 - slip
+        assert_relative_eq!(
+            emission_probability(true, true, &params),
+            0.9,
+            epsilon = 1e-10
+        );
+        
+        // Known but incorrect: slip
+        assert_relative_eq!(
+            emission_probability(true, false, &params),
+            0.1,
+            epsilon = 1e-10
+        );
+        
+        // Unknown but correct: guess
+        assert_relative_eq!(
+            emission_probability(false, true, &params),
+            0.25,
+            epsilon = 1e-10
+        );
+        
+        // Unknown and incorrect: 1 - guess
+        assert_relative_eq!(
+            emission_probability(false, false, &params),
+            0.75,
+            epsilon = 1e-10
+        );
+    }
+
+    #[test]
+    fn test_get_transition_probs_hmm() {
+        let params = test_params();
+        let (p_kk, p_ku, p_uk, p_uu) = get_transition_probs(&Models::HiddenMarkovModel, &params);
+        
+        // Symmetric transitions in HMM
+        assert_relative_eq!(p_kk, 0.2, epsilon = 1e-10);
+        assert_relative_eq!(p_ku, 0.8, epsilon = 1e-10);
+        assert_relative_eq!(p_uk, 0.2, epsilon = 1e-10);
+        assert_relative_eq!(p_uu, 0.8, epsilon = 1e-10);
+        
+        // Check probabilities sum to 1
+        assert_relative_eq!(p_kk + p_ku, 1.0, epsilon = 1e-10);
+        assert_relative_eq!(p_uk + p_uu, 1.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_get_transition_probs_kt() {
+        let params = test_params();
+        let (p_kk, p_ku, p_uk, p_uu) = get_transition_probs(&Models::KnowledgeTracingModel, &params);
+        
+        // One-way transitions in KT (can't unlearn)
+        assert_relative_eq!(p_kk, 1.0, epsilon = 1e-10);
+        assert_relative_eq!(p_ku, 0.0, epsilon = 1e-10);
+        assert_relative_eq!(p_uk, 0.2, epsilon = 1e-10);
+        assert_relative_eq!(p_uu, 0.8, epsilon = 1e-10);
+        
+        // Check probabilities sum to 1
+        assert_relative_eq!(p_kk + p_ku, 1.0, epsilon = 1e-10);
+        assert_relative_eq!(p_uk + p_uu, 1.0, epsilon = 1e-10);
+    }
+
+    #[tokio::test]
+    async fn test_forward_pass_empty() {
+        let params = test_params();
+        let observations: Vec<bool> = vec![];
+        
+        let (alpha_k, alpha_u) = forward_pass(&observations, &params, &Models::KnowledgeTracingModel).await;
+        
+        // Should only have initial state
+        assert_eq!(alpha_k.len(), 1);
+        assert_eq!(alpha_u.len(), 1);
+        assert_relative_eq!(alpha_k[0], 0.3, epsilon = 1e-10);
+        assert_relative_eq!(alpha_u[0], 0.7, epsilon = 1e-10);
+    }
+
+    #[tokio::test]
+    async fn test_forward_pass_single_observation() {
+        let params = test_params();
+        let observations = vec![true]; // One correct observation
+        
+        let (alpha_k, alpha_u) = forward_pass(&observations, &params, &Models::KnowledgeTracingModel).await;
+        
+        // Should have initial + 1 observation
+        assert_eq!(alpha_k.len(), 2);
+        assert_eq!(alpha_u.len(), 2);
+        
+        // Probabilities should sum to 1 at each step
+        assert_relative_eq!(alpha_k[0] + alpha_u[0], 1.0, epsilon = 1e-10);
+        assert_relative_eq!(alpha_k[1] + alpha_u[1], 1.0, epsilon = 1e-10);
+        
+        // After correct observation, probability of known should increase
+        assert!(alpha_k[1] > alpha_k[0]);
+    }
+
+    #[tokio::test]
+    async fn test_backward_pass_empty() {
+        let params = test_params();
+        let observations: Vec<bool> = vec![];
+        
+        let (beta_k, beta_u) = backward_pass(&observations, &params, &Models::KnowledgeTracingModel).await;
+        
+        // Should only have terminal state
+        assert_eq!(beta_k.len(), 1);
+        assert_eq!(beta_u.len(), 1);
+        assert_relative_eq!(beta_k[0], 1.0, epsilon = 1e-10);
+        assert_relative_eq!(beta_u[0], 1.0, epsilon = 1e-10);
+    }
+
+    #[tokio::test]
+    async fn test_backward_pass_single_observation() {
+        let params = test_params();
+        let observations = vec![true];
+        
+        let (beta_k, beta_u) = backward_pass(&observations, &params, &Models::KnowledgeTracingModel).await;
+        
+        assert_eq!(beta_k.len(), 2);
+        assert_eq!(beta_u.len(), 2);
+        
+        // Terminal values should be 1
+        assert_relative_eq!(beta_k[1], 1.0, epsilon = 1e-10);
+        assert_relative_eq!(beta_u[1], 1.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_compute_gamma() {
+        let alpha_k = vec![0.3, 0.6, 0.8];
+        let alpha_u = vec![0.7, 0.4, 0.2];
+        let beta_k = vec![0.5, 0.7, 1.0];
+        let beta_u = vec![0.5, 0.3, 1.0];
+        
+        let gamma = compute_gamma(&alpha_k, &alpha_u, &beta_k, &beta_u);
+        
+        assert_eq!(gamma.len(), 3);
+        
+        // All probabilities should be between 0 and 1
+        for &g in &gamma {
+            assert!(g >= 0.0 && g <= 1.0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compute_xi() {
+        let params = test_params();
+        let observations = vec![true, false, true];
+        
+        let (alpha_k, alpha_u) = forward_pass(&observations, &params, &Models::KnowledgeTracingModel).await;
+        let (beta_k, beta_u) = backward_pass(&observations, &params, &Models::KnowledgeTracingModel).await;
+        
+        let xi = compute_xi(
+            &observations,
+            &alpha_k,
+            &alpha_u,
+            &beta_k,
+            &beta_u,
+            &params,
+            &Models::KnowledgeTracingModel,
+        ).await;
+        
+        assert_eq!(xi.len(), observations.len());
+        
+        // All transition probabilities should be between 0 and 1
+        for &x in &xi {
+            assert!(x >= 0.0 && x <= 1.0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_accumulate_counts_empty() {
+        let params = test_params();
+        let observations: Vec<bool> = vec![];
+        let mut counts = ExpectedCounts::new();
+        
+        accumulate_counts(&observations, &params, &Models::KnowledgeTracingModel, &mut counts).await;
+        
+        // Empty sequence should not change counts
+        assert_eq!(counts.n_sequences, 0);
+        assert_relative_eq!(counts.sum_initial_mastery, 0.0, epsilon = 1e-10);
+    }
+
+    #[tokio::test]
+    async fn test_accumulate_counts_single_sequence() {
+        let params = test_params();
+        let observations = vec![true, true, false];
+        let mut counts = ExpectedCounts::new();
+        
+        accumulate_counts(&observations, &params, &Models::KnowledgeTracingModel, &mut counts).await;
+        
+        // Should increment sequence count
+        assert_eq!(counts.n_sequences, 1);
+        
+        // Should have some initial mastery probability
+        assert!(counts.sum_initial_mastery > 0.0);
+        assert!(counts.sum_initial_mastery <= 1.0);
+        
+        // Should have accumulated some counts
+        assert!(counts.sum_known > 0.0);
+        assert!(counts.sum_unknown > 0.0);
+    }
+
+    #[test]
+    fn test_m_step_basic() {
+        let mut counts = ExpectedCounts::new();
+        counts.n_sequences = 10;
+        counts.sum_initial_mastery = 3.0;
+        counts.sum_learned = 5.0;
+        counts.sum_opportunities_unknown = 20.0;
+        counts.sum_correct_while_known = 18.0;
+        counts.sum_known = 20.0;
+        counts.sum_correct_while_unknown = 5.0;
+        counts.sum_unknown = 20.0;
+        
+        let result = m_step(&counts);
+        
+        // Check that all parameters are in valid range [0.01, 0.99]
+        assert!(result.initial >= 0.01 && result.initial <= 0.99);
+        assert!(result.transition >= 0.01 && result.transition <= 0.99);
+        assert!(result.slip >= 0.01 && result.slip <= 0.99);
+        assert!(result.guess >= 0.01 && result.guess <= 0.99);
+        
+        // Check identifiability constraint: guess + slip < 1
+        assert!(result.guess + result.slip < 1.0);
+        
+        // Check approximate values
+        assert_relative_eq!(result.initial, 0.3, epsilon = 1e-2);
+        assert_relative_eq!(result.transition, 0.25, epsilon = 1e-2);
+        assert_relative_eq!(result.slip, 0.1, epsilon = 1e-2);
+        assert_relative_eq!(result.guess, 0.25, epsilon = 1e-2);
+    }
+
+    #[test]
+    fn test_m_step_identifiability_constraint() {
+        let mut counts = ExpectedCounts::new();
+        counts.n_sequences = 10;
+        counts.sum_initial_mastery = 5.0;
+        counts.sum_learned = 10.0;
+        counts.sum_opportunities_unknown = 20.0;
+        // High slip and guess rates that sum > 1
+        counts.sum_correct_while_known = 5.0;
+        counts.sum_known = 10.0;
+        counts.sum_correct_while_unknown = 9.0;
+        counts.sum_unknown = 10.0;
+        
+        let result = m_step(&counts);
+        
+        // Should enforce identifiability constraint: guess + slip < 1.0
+        assert!(result.guess + result.slip < 1.0, 
+            "guess + slip = {} + {} = {} should be < 1.0", 
+            result.guess, result.slip, result.guess + result.slip);
+        
+        // The actual scaling in m_step ensures sum is at most 0.98
+        // but only when the original sum >= 1.0
+        let raw_slip = 1.0 - (counts.sum_correct_while_known / counts.sum_known).max(0.01).min(0.99);
+        let raw_guess = (counts.sum_correct_while_unknown / counts.sum_unknown).max(0.01).min(0.99);
+        let raw_sum = raw_slip + raw_guess;
+        
+        if raw_sum >= 1.0 {
+            // When raw values sum >= 1.0, the result should be scaled down
+            assert!(result.guess + result.slip <= 0.99, 
+                "After scaling, guess + slip should be <= 0.99");
+        }
+    }
+
+    #[test]
+    fn test_m_step_zero_sequences() {
+        let counts = ExpectedCounts::new();
+        let result = m_step(&counts);
+        
+        // Should return reasonable defaults
+        assert!(result.initial >= 0.01 && result.initial <= 0.99);
+        assert!(result.transition >= 0.01 && result.transition <= 0.99);
+        assert!(result.slip >= 0.01 && result.slip <= 0.99);
+        assert!(result.guess >= 0.01 && result.guess <= 0.99);
+    }
+
+    #[test]
+    fn test_expected_counts_new() {
+        let counts = ExpectedCounts::new();
+        
+        assert_eq!(counts.n_sequences, 0);
+        assert_relative_eq!(counts.sum_initial_mastery, 0.0, epsilon = 1e-10);
+        assert_relative_eq!(counts.sum_learned, 0.0, epsilon = 1e-10);
+        assert_relative_eq!(counts.sum_opportunities_unknown, 0.0, epsilon = 1e-10);
+        assert_relative_eq!(counts.sum_correct_while_known, 0.0, epsilon = 1e-10);
+        assert_relative_eq!(counts.sum_known, 0.0, epsilon = 1e-10);
+        assert_relative_eq!(counts.sum_correct_while_unknown, 0.0, epsilon = 1e-10);
+        assert_relative_eq!(counts.sum_unknown, 0.0, epsilon = 1e-10);
+    }
+
+    #[tokio::test]
+    async fn test_forward_backward_consistency() {
+        let params = test_params();
+        let observations = vec![true, false, true, true, false];
+        
+        let (alpha_k, alpha_u) = forward_pass(&observations, &params, &Models::KnowledgeTracingModel).await;
+        let (beta_k, beta_u) = backward_pass(&observations, &params, &Models::KnowledgeTracingModel).await;
+        
+        // Check that alpha and beta have consistent lengths
+        assert_eq!(alpha_k.len(), observations.len() + 1);
+        assert_eq!(alpha_u.len(), observations.len() + 1);
+        assert_eq!(beta_k.len(), observations.len() + 1);
+        assert_eq!(beta_u.len(), observations.len() + 1);
+        
+        // Check that alpha probabilities sum to 1 at each step
+        for i in 0..alpha_k.len() {
+            assert_relative_eq!(alpha_k[i] + alpha_u[i], 1.0, epsilon = 1e-6);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_kt_no_unlearning() {
+        let params = EmResult {
+            initial: 0.5,
+            transition: 0.3,
+            slip: 0.1,
+            guess: 0.2,
+        };
+        let observations = vec![true; 10]; // All correct
+        
+        let (alpha_k, _alpha_u) = forward_pass(&observations, &params, &Models::KnowledgeTracingModel).await;
+        
+        // In KT model with all correct answers, probability of knowing should increase monotonically
+        for i in 1..alpha_k.len() {
+            assert!(alpha_k[i] >= alpha_k[i-1] - 1e-6); // Allow tiny numerical errors
+        }
+    }
+}
