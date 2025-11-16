@@ -164,3 +164,526 @@ async fn evaluate_parameters(
     })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use approx::assert_relative_eq;
+    #[test]
+    fn test_grid_search_result_creation() {
+        let result = GridSearchResult {
+            initial: 0.3,
+            transition: 0.2,
+            slip: 0.1,
+            guess: 0.25,
+            auc: 0.85,
+            log_loss: 0.35,
+            brier_score: 0.15,
+            accuracy: 0.82,
+            f1_score: 0.78,
+        };
+
+        assert_relative_eq!(result.initial, 0.3, epsilon = 1e-10);
+        assert_relative_eq!(result.transition, 0.2, epsilon = 1e-10);
+        assert_relative_eq!(result.slip, 0.1, epsilon = 1e-10);
+        assert_relative_eq!(result.guess, 0.25, epsilon = 1e-10);
+        assert_relative_eq!(result.auc, 0.85, epsilon = 1e-10);
+        assert_relative_eq!(result.log_loss, 0.35, epsilon = 1e-10);
+        assert_relative_eq!(result.brier_score, 0.15, epsilon = 1e-10);
+        assert_relative_eq!(result.accuracy, 0.82, epsilon = 1e-10);
+        assert_relative_eq!(result.f1_score, 0.78, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_grid_search_result_print() {
+        let result = GridSearchResult {
+            initial: 0.3,
+            transition: 0.2,
+            slip: 0.1,
+            guess: 0.25,
+            auc: 0.85,
+            log_loss: 0.35,
+            brier_score: 0.15,
+            accuracy: 0.82,
+            f1_score: 0.78,
+        };
+
+        // Test that print doesn't panic
+        result.print(1);
+    }
+
+    #[test]
+    fn test_get_best_metric_empty_results() {
+        let results: Vec<GridSearchResult> = vec![];
+        
+        // get_best_metric checks if results.is_empty() first and returns 0.0
+        assert_relative_eq!(get_best_metric(&results, "auc"), 0.0, epsilon = 1e-10);
+        assert_relative_eq!(get_best_metric(&results, "f1_score"), 0.0, epsilon = 1e-10);
+        assert_relative_eq!(get_best_metric(&results, "log_loss"), 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_get_best_metric_auc() {
+        let results = vec![
+            GridSearchResult {
+                initial: 0.3,
+                transition: 0.2,
+                slip: 0.1,
+                guess: 0.25,
+                auc: 0.75,
+                log_loss: 0.4,
+                brier_score: 0.2,
+                accuracy: 0.70,
+                f1_score: 0.65,
+            },
+            GridSearchResult {
+                initial: 0.25,
+                transition: 0.15,
+                slip: 0.15,
+                guess: 0.2,
+                auc: 0.85,
+                log_loss: 0.35,
+                brier_score: 0.18,
+                accuracy: 0.82,
+                f1_score: 0.78,
+            },
+            GridSearchResult {
+                initial: 0.2,
+                transition: 0.25,
+                slip: 0.12,
+                guess: 0.22,
+                auc: 0.80,
+                log_loss: 0.38,
+                brier_score: 0.19,
+                accuracy: 0.75,
+                f1_score: 0.72,
+            },
+        ];
+
+        let best_auc = get_best_metric(&results, "auc");
+        assert_relative_eq!(best_auc, 0.85, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_get_best_metric_log_loss() {
+        let results = vec![
+            GridSearchResult {
+                initial: 0.3,
+                transition: 0.2,
+                slip: 0.1,
+                guess: 0.25,
+                auc: 0.75,
+                log_loss: 0.4,
+                brier_score: 0.2,
+                accuracy: 0.70,
+                f1_score: 0.65,
+            },
+            GridSearchResult {
+                initial: 0.25,
+                transition: 0.15,
+                slip: 0.15,
+                guess: 0.2,
+                auc: 0.85,
+                log_loss: 0.25,
+                brier_score: 0.18,
+                accuracy: 0.82,
+                f1_score: 0.78,
+            },
+            GridSearchResult {
+                initial: 0.2,
+                transition: 0.25,
+                slip: 0.12,
+                guess: 0.22,
+                auc: 0.80,
+                log_loss: 0.38,
+                brier_score: 0.19,
+                accuracy: 0.75,
+                f1_score: 0.72,
+            },
+        ];
+
+        let best_log_loss = get_best_metric(&results, "log_loss");
+        assert_relative_eq!(best_log_loss, 0.25, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_get_best_metric_f1_score() {
+        let results = vec![
+            GridSearchResult {
+                initial: 0.3,
+                transition: 0.2,
+                slip: 0.1,
+                guess: 0.25,
+                auc: 0.75,
+                log_loss: 0.4,
+                brier_score: 0.2,
+                accuracy: 0.70,
+                f1_score: 0.65,
+            },
+            GridSearchResult {
+                initial: 0.25,
+                transition: 0.15,
+                slip: 0.15,
+                guess: 0.2,
+                auc: 0.85,
+                log_loss: 0.35,
+                brier_score: 0.18,
+                accuracy: 0.82,
+                f1_score: 0.82,
+            },
+            GridSearchResult {
+                initial: 0.2,
+                transition: 0.25,
+                slip: 0.12,
+                guess: 0.22,
+                auc: 0.80,
+                log_loss: 0.38,
+                brier_score: 0.19,
+                accuracy: 0.75,
+                f1_score: 0.72,
+            },
+        ];
+
+        let best_f1 = get_best_metric(&results, "f1_score");
+        assert_relative_eq!(best_f1, 0.82, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_get_best_metric_unknown_metric_defaults_to_auc() {
+        let results = vec![
+            GridSearchResult {
+                initial: 0.3,
+                transition: 0.2,
+                slip: 0.1,
+                guess: 0.25,
+                auc: 0.90,
+                log_loss: 0.4,
+                brier_score: 0.2,
+                accuracy: 0.70,
+                f1_score: 0.65,
+            },
+        ];
+
+        let best = get_best_metric(&results, "unknown_metric");
+        assert_relative_eq!(best, 0.90, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_parameter_validation_slip_plus_guess() {
+        // Test that slip + guess > 1.0 combinations would be skipped
+        let slip = 0.6;
+        let guess = 0.5;
+        
+        assert!(slip + guess > 1.0, "This combination should be invalid");
+    }
+
+    #[test]
+    fn test_valid_parameter_combination() {
+        let slip = 0.1;
+        let guess = 0.25;
+        
+        assert!(slip + guess <= 1.0, "This combination should be valid");
+    }
+
+    #[test]
+    fn test_grid_search_result_sorting_by_auc() {
+        let mut results = vec![
+            GridSearchResult {
+                initial: 0.3,
+                transition: 0.2,
+                slip: 0.1,
+                guess: 0.25,
+                auc: 0.75,
+                log_loss: 0.4,
+                brier_score: 0.2,
+                accuracy: 0.70,
+                f1_score: 0.65,
+            },
+            GridSearchResult {
+                initial: 0.25,
+                transition: 0.15,
+                slip: 0.15,
+                guess: 0.2,
+                auc: 0.85,
+                log_loss: 0.35,
+                brier_score: 0.18,
+                accuracy: 0.82,
+                f1_score: 0.78,
+            },
+            GridSearchResult {
+                initial: 0.2,
+                transition: 0.25,
+                slip: 0.12,
+                guess: 0.22,
+                auc: 0.80,
+                log_loss: 0.38,
+                brier_score: 0.19,
+                accuracy: 0.75,
+                f1_score: 0.72,
+            },
+        ];
+
+        results.sort_by(|a, b| b.auc.partial_cmp(&a.auc).unwrap());
+
+        assert_relative_eq!(results[0].auc, 0.85, epsilon = 1e-10);
+        assert_relative_eq!(results[1].auc, 0.80, epsilon = 1e-10);
+        assert_relative_eq!(results[2].auc, 0.75, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_grid_search_result_sorting_by_log_loss() {
+        let mut results = vec![
+            GridSearchResult {
+                initial: 0.3,
+                transition: 0.2,
+                slip: 0.1,
+                guess: 0.25,
+                auc: 0.75,
+                log_loss: 0.4,
+                brier_score: 0.2,
+                accuracy: 0.70,
+                f1_score: 0.65,
+            },
+            GridSearchResult {
+                initial: 0.25,
+                transition: 0.15,
+                slip: 0.15,
+                guess: 0.2,
+                auc: 0.85,
+                log_loss: 0.25,
+                brier_score: 0.18,
+                accuracy: 0.82,
+                f1_score: 0.78,
+            },
+            GridSearchResult {
+                initial: 0.2,
+                transition: 0.25,
+                slip: 0.12,
+                guess: 0.22,
+                auc: 0.80,
+                log_loss: 0.38,
+                brier_score: 0.19,
+                accuracy: 0.75,
+                f1_score: 0.72,
+            },
+        ];
+
+        results.sort_by(|a, b| a.log_loss.partial_cmp(&b.log_loss).unwrap());
+
+        assert_relative_eq!(results[0].log_loss, 0.25, epsilon = 1e-10);
+        assert_relative_eq!(results[1].log_loss, 0.38, epsilon = 1e-10);
+        assert_relative_eq!(results[2].log_loss, 0.4, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_grid_search_result_sorting_by_f1_score() {
+        let mut results = vec![
+            GridSearchResult {
+                initial: 0.3,
+                transition: 0.2,
+                slip: 0.1,
+                guess: 0.25,
+                auc: 0.75,
+                log_loss: 0.4,
+                brier_score: 0.2,
+                accuracy: 0.70,
+                f1_score: 0.65,
+            },
+            GridSearchResult {
+                initial: 0.25,
+                transition: 0.15,
+                slip: 0.15,
+                guess: 0.2,
+                auc: 0.85,
+                log_loss: 0.35,
+                brier_score: 0.18,
+                accuracy: 0.82,
+                f1_score: 0.82,
+            },
+            GridSearchResult {
+                initial: 0.2,
+                transition: 0.25,
+                slip: 0.12,
+                guess: 0.22,
+                auc: 0.80,
+                log_loss: 0.38,
+                brier_score: 0.19,
+                accuracy: 0.75,
+                f1_score: 0.72,
+            },
+        ];
+
+        results.sort_by(|a, b| b.f1_score.partial_cmp(&a.f1_score).unwrap());
+
+        assert_relative_eq!(results[0].f1_score, 0.82, epsilon = 1e-10);
+        assert_relative_eq!(results[1].f1_score, 0.72, epsilon = 1e-10);
+        assert_relative_eq!(results[2].f1_score, 0.65, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_grid_search_result_clone() {
+        let result = GridSearchResult {
+            initial: 0.3,
+            transition: 0.2,
+            slip: 0.1,
+            guess: 0.25,
+            auc: 0.85,
+            log_loss: 0.35,
+            brier_score: 0.15,
+            accuracy: 0.82,
+            f1_score: 0.78,
+        };
+
+        let cloned = result.clone();
+
+        assert_relative_eq!(cloned.initial, result.initial, epsilon = 1e-10);
+        assert_relative_eq!(cloned.transition, result.transition, epsilon = 1e-10);
+        assert_relative_eq!(cloned.slip, result.slip, epsilon = 1e-10);
+        assert_relative_eq!(cloned.guess, result.guess, epsilon = 1e-10);
+        assert_relative_eq!(cloned.auc, result.auc, epsilon = 1e-10);
+        assert_relative_eq!(cloned.log_loss, result.log_loss, epsilon = 1e-10);
+        assert_relative_eq!(cloned.brier_score, result.brier_score, epsilon = 1e-10);
+        assert_relative_eq!(cloned.accuracy, result.accuracy, epsilon = 1e-10);
+        assert_relative_eq!(cloned.f1_score, result.f1_score, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_grid_dimension_calculations() {
+        let initial_range = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30];
+        let transition_range = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30];
+        let slip_range = vec![0.05, 0.10, 0.15, 0.20];
+        let guess_range = vec![0.10, 0.15, 0.20, 0.25, 0.30];
+
+        let total_combinations = initial_range.len() 
+            * transition_range.len() 
+            * slip_range.len() 
+            * guess_range.len();
+        
+        assert_eq!(total_combinations, 6 * 6 * 4 * 5);
+        assert_eq!(total_combinations, 720);
+    }
+
+    #[test]
+    fn test_valid_combinations_filtering() {
+        // Count how many valid combinations exist in a small grid
+        let slip_range = vec![0.1, 0.3, 0.5];
+        let guess_range = vec![0.2, 0.4, 0.6];
+        
+        let valid_count = slip_range.iter()
+            .flat_map(|&s| guess_range.iter().map(move |&g| (s, g)))
+            .filter(|&(s, g)| s + g <= 1.0)
+            .count();
+        
+        // Valid combinations where slip + guess <= 1.0:
+        // (0.1, 0.2) = 0.3 ✓
+        // (0.1, 0.4) = 0.5 ✓
+        // (0.1, 0.6) = 0.7 ✓
+        // (0.3, 0.2) = 0.5 ✓
+        // (0.3, 0.4) = 0.7 ✓
+        // (0.3, 0.6) = 0.9 ✓
+        // (0.5, 0.2) = 0.7 ✓
+        // (0.5, 0.4) = 0.9 ✓
+        // (0.5, 0.6) = 1.1 ✗
+        assert_eq!(valid_count, 8);
+    }
+
+    #[test]
+    fn test_parameter_ranges_are_valid() {
+        let initial_range = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30];
+        let transition_range = vec![0.05, 0.10, 0.15, 0.20, 0.25, 0.30];
+        let slip_range = vec![0.05, 0.10, 0.15, 0.20];
+        let guess_range = vec![0.10, 0.15, 0.20, 0.25, 0.30];
+
+        // All values should be in valid probability range [0, 1]
+        for &val in &initial_range {
+            assert!(val >= 0.0 && val <= 1.0);
+        }
+        for &val in &transition_range {
+            assert!(val >= 0.0 && val <= 1.0);
+        }
+        for &val in &slip_range {
+            assert!(val >= 0.0 && val <= 1.0);
+        }
+        for &val in &guess_range {
+            assert!(val >= 0.0 && val <= 1.0);
+        }
+    }
+
+    #[test]
+    fn test_metric_comparison_functions() {
+        let a = GridSearchResult {
+            initial: 0.3,
+            transition: 0.2,
+            slip: 0.1,
+            guess: 0.25,
+            auc: 0.85,
+            log_loss: 0.35,
+            brier_score: 0.15,
+            accuracy: 0.82,
+            f1_score: 0.78,
+        };
+        
+        let b = GridSearchResult {
+            initial: 0.25,
+            transition: 0.15,
+            slip: 0.15,
+            guess: 0.2,
+            auc: 0.80,
+            log_loss: 0.30,
+            brier_score: 0.18,
+            accuracy: 0.75,
+            f1_score: 0.72,
+        };
+
+        // AUC: higher is better (a > b)
+        assert!(a.auc > b.auc);
+        assert!(b.auc.partial_cmp(&a.auc).unwrap() == std::cmp::Ordering::Less);
+
+        // Log loss: lower is better (b < a)
+        assert!(b.log_loss < a.log_loss);
+        assert!(a.log_loss.partial_cmp(&b.log_loss).unwrap() == std::cmp::Ordering::Greater);
+
+        // F1: higher is better (a > b)
+        assert!(a.f1_score > b.f1_score);
+        assert!(b.f1_score.partial_cmp(&a.f1_score).unwrap() == std::cmp::Ordering::Less);
+    }
+
+    #[test]
+    fn test_results_take_10() {
+        let results: Vec<GridSearchResult> = (0..20)
+            .map(|i| GridSearchResult {
+                initial: 0.3,
+                transition: 0.2,
+                slip: 0.1,
+                guess: 0.25,
+                auc: 0.5 + (i as f64 * 0.02),
+                log_loss: 0.5,
+                brier_score: 0.2,
+                accuracy: 0.7,
+                f1_score: 0.6,
+            })
+            .collect();
+
+        let top_10: Vec<_> = results.iter().take(10).collect();
+        assert_eq!(top_10.len(), 10);
+    }
+
+    #[test]
+    fn test_results_take_10_with_fewer_results() {
+        let results: Vec<GridSearchResult> = (0..5)
+            .map(|i| GridSearchResult {
+                initial: 0.3,
+                transition: 0.2,
+                slip: 0.1,
+                guess: 0.25,
+                auc: 0.5 + (i as f64 * 0.02),
+                log_loss: 0.5,
+                brier_score: 0.2,
+                accuracy: 0.7,
+                f1_score: 0.6,
+            })
+            .collect();
+
+        let top_10: Vec<_> = results.iter().take(10).collect();
+        assert_eq!(top_10.len(), 5);
+    }
+}
