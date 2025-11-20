@@ -12,6 +12,15 @@ serde = {version = "1.0.228", features = ["derive"] }
 time = "0.3.44"
 tokio = { version = "1.48.0", features = ["full"] }
 
+
+[[bin]]
+name = "preprocess"
+path = "./src/main_preprocess.rs"
+
+[[bin]]
+name = "em"
+path = "./src/main_em.rs"
+
 [profile.release]
 opt-level = 3     # Optimize for speed
 lto = true          # Enable link-time optimization
