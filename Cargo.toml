@@ -15,13 +15,20 @@ tokio = { version = "1.48.0", features = ["full"] }
 
 [[bin]]
 name = "preprocess"
-path = "./src/main_preprocess.rs"
+path = "./src/bin/main_preprocess.rs"
 
 [[bin]]
 name = "em"
-path = "./src/main_em.rs"
+path = "./src/bin/main_em.rs"
 
+[[bin]]
+name = "grid"
+path = "./src/bin/main_grid.rs"
+
+[[bin]]
+name = "eval"
+path = "./src/bin/main_eval.rs"
 [profile.release]
-opt-level = 3     # Optimize for speed
-lto = true          # Enable link-time optimization
-codegen-units = 1   # Reduce number of codegen units to increase optimizations
+opt-level = 3     
+lto = true         
+codegen-units = 1   
