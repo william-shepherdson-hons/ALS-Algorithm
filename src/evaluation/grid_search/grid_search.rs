@@ -572,17 +572,6 @@ mod tests {
             .flat_map(|&s| guess_range.iter().map(move |&g| (s, g)))
             .filter(|&(s, g)| s + g <= 1.0)
             .count();
-        
-        // Valid combinations where slip + guess <= 1.0:
-        // (0.1, 0.2) = 0.3 ✓
-        // (0.1, 0.4) = 0.5 ✓
-        // (0.1, 0.6) = 0.7 ✓
-        // (0.3, 0.2) = 0.5 ✓
-        // (0.3, 0.4) = 0.7 ✓
-        // (0.3, 0.6) = 0.9 ✓
-        // (0.5, 0.2) = 0.7 ✓
-        // (0.5, 0.4) = 0.9 ✓
-        // (0.5, 0.6) = 1.1 ✗
         assert_eq!(valid_count, 8);
     }
 
