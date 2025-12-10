@@ -1,6 +1,6 @@
 use std::env;
 
-use als_algorithm::evaluation::{em_algorithm::em_result::EmResult, performance::auc_roc::benchmark_model_with_metrics};
+use als_algorithm::evaluation::{em_algorithm::em_result::EmResult, performance::metrics::benchmark_model_with_metrics};
 
 #[tokio::main]
 async fn main() {

@@ -3,7 +3,7 @@ use crate::{
         em_algorithm::{em_result::EmResult, formatted_record::FormattedRecord},
         performance::{
             load_data::{load_data, load_students},
-            auc_roc::{evaluate_hmm, evaluate_ktm, calculate_auc_roc, calculate_classification_metrics}
+            metrics::{evaluate_hmm, evaluate_ktm, calculate_auc_roc, calculate_classification_metrics}
         },
     },
     models::{models::Models},

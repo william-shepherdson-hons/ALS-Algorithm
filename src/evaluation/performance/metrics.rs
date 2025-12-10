@@ -44,7 +44,7 @@ pub async fn benchmark_model_with_metrics(model: Models, initial_parameters: EmR
 }
 
 
-pub async fn evaluate_hmm(users: &mut HashMap<u32, HashMap<u32, f64>>, records: &Vec<FormattedRecord>, transition: f64, slip: f64, guess: f64) ->  Vec<Prediction> {
+pub (in crate::evaluation) async fn evaluate_hmm(users: &mut HashMap<u32, HashMap<u32, f64>>, records: &Vec<FormattedRecord>, transition: f64, slip: f64, guess: f64) ->  Vec<Prediction> {
     let mut predictions = Vec::new();
     for record in records {
         if let Some(skill_map) = users.get_mut(&record.user_id) {
@@ -62,7 +62,7 @@ pub async fn evaluate_hmm(users: &mut HashMap<u32, HashMap<u32, f64>>, records: 
     predictions
 }
 
-pub async fn evaluate_ktm(users: &mut HashMap<u32, HashMap<u32, f64>>,records: &Vec<FormattedRecord>, transition: f64, slip: f64, guess: f64) -> Vec<Prediction> {
+pub (in crate::evaluation) async fn evaluate_ktm(users: &mut HashMap<u32, HashMap<u32, f64>>,records: &Vec<FormattedRecord>, transition: f64, slip: f64, guess: f64) -> Vec<Prediction> {
     let mut predictions = Vec::new();
 
     for record in records {
