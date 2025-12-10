@@ -1,6 +1,6 @@
 use std::env;
 
-use als_algorithm::evaluation::{em_algorithm::em_result::EmResult, performance::auc_roc::benchmark_model_with_auc};
+use als_algorithm::evaluation::{em_algorithm::em_result::EmResult, performance::auc_roc::benchmark_model_with_metrics};
 
 #[tokio::main]
 async fn main() {
@@ -30,5 +30,5 @@ async fn main() {
         return;
     }
     let input = "src/data/test_data.csv";
-    let _ = benchmark_model_with_auc(model, params, input).await;
+    let _ = benchmark_model_with_metrics(model, params, input).await;
 }

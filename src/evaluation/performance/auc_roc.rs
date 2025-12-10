@@ -2,7 +2,7 @@ use csv::Writer;
 
 use crate::{evaluation::{em_algorithm::{em_result::EmResult, formatted_record::FormattedRecord}, performance::{load_data::{load_data, load_students}, prediction::{Prediction}}}, models::{hidden_markov_model, knowledge_tracing_model, models::Models}};
 use std::{collections::HashMap, error::Error};
-pub async fn benchmark_model_with_auc(model: Models, initial_parameters: EmResult, input: &str) -> Result<(), Box<dyn Error>> {
+pub async fn benchmark_model_with_metrics(model: Models, initial_parameters: EmResult, input: &str) -> Result<(), Box<dyn Error>> {
     let records = load_data(input).await?;
     let mut users = load_students(&records, initial_parameters).await?;
     println!("Initialized {} students with skill maps.", users.len());
